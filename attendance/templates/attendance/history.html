@@ -1,0 +1,159 @@
+{% extends 'attendance/base.html' %}
+
+{% block title %}Attendance History - WorkTime Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div>
+        <h2 class="fw-bold mb-1">Attendance History & Logs</h2>
+        <p class="text-muted mb-0">Detailed view of your login, logout, surplus and deficit records.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'export_attendance_csv' %}?year={{ selected_year }}&month={{ selected_month }}" class="btn btn-outline-success rounded-pill px-3">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export to CSV
+        </a>
+        <a href="{% url 'attendance_create' %}" class="btn btn-primary-custom rounded-pill px-3">
+            <i class="bi bi-plus-lg me-1"></i> Log Hours Manually
+        </a>
+    </div>
+</div>
+
+<!-- FILTER & MONTH SUMMARY CARD -->
+<div class="card p-3 mb-4">
+    <div class="row align-items-center g-3">
+        <!-- Month and Year Selector Form -->
+        <div class="col-lg-5">
+            <form method="get" class="d-flex gap-2 align-items-center">
+                <select name="month" class="form-select">
+                    {% for m_num, m_name in months %}
+                        <option value="{{ m_num }}" {% if m_num == selected_month %}selected{% endif %}>
+                            {{ m_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <select name="year" class="form-select">
+                    {% for y in years %}
+                        <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>
+                            {{ y }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-secondary px-3">Filter</button>
+            </form>
+        </div>
+
+        <!-- Month Summary Stats Pills -->
+        <div class="col-lg-7">
+            <div class="d-flex flex-wrap justify-content-lg-end gap-3 text-center">
+                <div class="px-3 py-1 bg-light border rounded-3">
+                    <small class="text-muted d-block">Days Worked</small>
+                    <span class="fw-bold text-dark fs-5">{{ monthly_stats.days_worked }}</span>
+                </div>
+                <div class="px-3 py-1 bg-light border rounded-3">
+                    <small class="text-muted d-block">Monthly Average</small>
+                    <span class="fw-bold text-primary fs-5">{{ monthly_stats.avg_hours_formatted }} / day</span>
+                </div>
+                <div class="px-3 py-1 bg-light border rounded-3">
+                    <small class="text-muted d-block">Net Balance</small>
+                    <span class="fw-bold fs-5 {% if monthly_stats.is_surplus %}text-success{% else %}text-danger{% endif %}">
+                        {{ monthly_stats.diff_formatted }}
+                    </span>
+                </div>
+                <div class="px-3 py-1 bg-light border rounded-3">
+                    <small class="text-muted d-block">Leaves Taken</small>
+                    <span class="fw-bold text-warning fs-5">{{ monthly_stats.total_leaves_month }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ATTENDANCE TABLE -->
+<div class="card overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-4">Date</th>
+                    <th>Day</th>
+                    <th>Punch In</th>
+                    <th>Punch Out</th>
+                    <th>Break</th>
+                    <th>Total Worked</th>
+                    <th>Target</th>
+                    <th>Difference</th>
+                    <th>Status</th>
+                    <th class="text-end pe-4">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if records %}
+                    {% for r in records %}
+                        <tr>
+                            <td class="ps-4 fw-bold">
+                                {{ r.date|date:"M d, Y" }}
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-secondary border">{{ r.date|date:"l" }}</span>
+                            </td>
+                            <td>
+                                <i class="bi bi-box-arrow-in-right text-success me-1"></i>
+                                {{ r.login_time|time:"h:i A" }}
+                            </td>
+                            <td>
+                                {% if r.logout_time %}
+                                    <i class="bi bi-box-arrow-left text-danger me-1"></i>
+                                    {{ r.logout_time|time:"h:i A" }}
+                                {% else %}
+                                    <span class="badge badge-ongoing">In Progress</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ r.break_minutes }} min</td>
+                            <td class="fw-bold text-dark">
+                                {{ r.worked_hours_formatted }}
+                            </td>
+                            <td class="text-muted small">
+                                {{ user.profile.daily_target_formatted }}
+                            </td>
+                            <td>
+                                {% if not r.logout_time %}
+                                    <span class="text-muted">-</span>
+                                {% elif r.diff_minutes >= 0 %}
+                                    <span class="fw-bold text-success">+{{ r.diff_formatted }}</span>
+                                {% else %}
+                                    <span class="fw-bold text-danger">{{ r.diff_formatted }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if not r.logout_time %}
+                                    <span class="badge badge-ongoing">Working</span>
+                                {% elif r.diff_minutes >= 0 %}
+                                    <span class="badge badge-surplus">Surplus</span>
+                                {% else %}
+                                    <span class="badge badge-deficit">Deficit</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end pe-4">
+                                <a href="{% url 'attendance_update' r.pk %}" class="btn btn-sm btn-outline-secondary me-1" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a href="{% url 'attendance_delete' r.pk %}" class="btn btn-sm btn-outline-danger" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center py-5 text-muted">
+                            <i class="bi bi-calendar-x fs-1 opacity-50 mb-2"></i>
+                            <p class="mb-0">No records found for {{ month_name }} {{ selected_year }}.</p>
+                            <a href="{% url 'attendance_create' %}" class="btn btn-sm btn-primary-custom mt-2">Log Hours Now</a>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

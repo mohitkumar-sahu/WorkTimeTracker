@@ -1,0 +1,407 @@
+{% extends 'attendance/base.html' %}
+
+{% block title %}Dashboard - WorkTime Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div>
+        <h2 class="fw-bold mb-1">Attendance & Hours Dashboard</h2>
+        <p class="text-muted mb-0">
+            <i class="bi bi-calendar-event me-1"></i> Today is <strong>{{ today|date:"l, F d, Y" }}</strong> &bull; Daily Required: <span class="badge bg-primary">{{ target_formatted }}</span>
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'attendance_create' %}" class="btn btn-outline-primary rounded-pill px-3">
+            <i class="bi bi-pencil-square me-1"></i> Manual Log
+        </a>
+        <a href="{% url 'leave_create' %}" class="btn btn-outline-secondary rounded-pill px-3">
+            <i class="bi bi-calendar-plus me-1"></i> Apply Leave
+        </a>
+    </div>
+</div>
+
+<!-- TODAY'S STATUS & PUNCH ACTION HERO CARD -->
+<div class="card mb-4 border-0 shadow-sm overflow-hidden" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #fff;">
+    <div class="card-body p-4">
+        <div class="row align-items-center">
+            <div class="col-lg-7 mb-3 mb-lg-0">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge rounded-pill bg-light text-dark px-3 py-1">
+                        <i class="bi bi-clock me-1"></i> TODAY'S SHIFT
+                    </span>
+                    {% if today_leave %}
+                        <span class="badge rounded-pill bg-warning text-dark px-3 py-1">
+                            <i class="bi bi-beach me-1"></i> On Leave ({{ today_leave.get_leave_type_display }})
+                        </span>
+                    {% elif not today_record %}
+                        <span class="badge rounded-pill bg-secondary px-3 py-1">Not Started</span>
+                    {% elif not today_record.logout_time %}
+                        <span class="badge rounded-pill bg-success px-3 py-1">
+                            <span class="spinner-grow spinner-grow-sm me-1" role="status"></span> Active / Clocked In
+                        </span>
+                    {% else %}
+                        <span class="badge rounded-pill bg-info text-dark px-3 py-1">Completed</span>
+                    {% endif %}
+                </div>
+
+                {% if today_leave %}
+                    <h3 class="fw-bold mb-1">You are marked on leave today.</h3>
+                    <p class="text-light opacity-75 mb-0">Reason: {{ today_leave.reason|default:"No reason specified" }} (Duration: {{ today_leave.duration }} day). Leaves do not count against your daily average calculation.</p>
+                {% elif not today_record %}
+                    <h3 class="fw-bold mb-1">Ready to start your work day?</h3>
+                    <p class="text-light opacity-75 mb-0">Punch in with a single click to track your <strong>{{ target_formatted }}</strong> daily target and protect your salary.</p>
+                {% elif not today_record.logout_time %}
+                    <h3 class="fw-bold mb-1 text-white">Clocked In at {{ today_record.login_time|time:"h:i A" }}</h3>
+                    <div class="mt-2 p-3 rounded-3" style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15);">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                            <div>
+                                <div class="text-light opacity-75 small text-uppercase fw-semibold">Target Logout Time (to hit {{ target_formatted }})</div>
+                                <div class="fs-4 fw-bold text-warning">
+                                    <i class="bi bi-alarm me-1"></i> {{ today_record.expected_logout_time|time:"h:i A" }}
+                                </div>
+                            </div>
+                            <div class="border-start border-white border-opacity-25 ps-3">
+                                <div class="text-light opacity-75 small text-uppercase fw-semibold">Logged Duration So Far</div>
+                                <div class="fs-5 fw-bold text-white">
+                                    {{ today_record.get_current_elapsed_minutes|default:0 }} minutes elapsed
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <h3 class="fw-bold mb-1 text-white">Shift Finished for Today!</h3>
+                    <div class="d-flex flex-wrap gap-4 mt-2">
+                        <div>
+                            <div class="text-light opacity-75 small">Punch In</div>
+                            <div class="fw-bold fs-5">{{ today_record.login_time|time:"h:i A" }}</div>
+                        </div>
+                        <div>
+                            <div class="text-light opacity-75 small">Punch Out</div>
+                            <div class="fw-bold fs-5">{{ today_record.logout_time|time:"h:i A" }}</div>
+                        </div>
+                        <div>
+                            <div class="text-light opacity-75 small">Break</div>
+                            <div class="fw-bold fs-5">{{ today_record.break_minutes }}m</div>
+                        </div>
+                        <div>
+                            <div class="text-light opacity-75 small">Total Worked</div>
+                            <div class="fw-bold fs-5 text-info">{{ today_record.worked_hours_formatted }}</div>
+                        </div>
+                        <div>
+                            <div class="text-light opacity-75 small">Diff (vs {{ target_formatted }})</div>
+                            {% if today_record.diff_minutes >= 0 %}
+                                <div class="fw-bold fs-5 text-success">+{{ today_record.diff_formatted }} Surplus</div>
+                            {% else %}
+                                <div class="fw-bold fs-5 text-danger">{{ today_record.diff_formatted }} Deficit</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- ACTION BUTTONS -->
+            <div class="col-lg-5 text-lg-end">
+                {% if not today_leave %}
+                    {% if not today_record %}
+                        <form method="post" action="{% url 'quick_punch_in' %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-success btn-lg px-4 py-3 fw-bold rounded-pill shadow">
+                                <i class="bi bi-box-arrow-in-right me-2"></i> Punch In Now
+                            </button>
+                        </form>
+                    {% elif not today_record.logout_time %}
+                        <div class="d-flex flex-column flex-sm-row justify-content-lg-end gap-2">
+                            <form method="post" action="{% url 'quick_punch_out' %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger btn-lg px-4 py-3 fw-bold rounded-pill shadow">
+                                    <i class="bi bi-box-arrow-left me-2"></i> Punch Out Now
+                                </button>
+                            </form>
+                            <a href="{% url 'attendance_update' today_record.id %}" class="btn btn-outline-light btn-lg px-3 py-3 rounded-pill">
+                                <i class="bi bi-pencil"></i> Edit
+                            </a>
+                        </div>
+                    {% else %}
+                        <a href="{% url 'attendance_update' today_record.id %}" class="btn btn-outline-light btn-lg px-4 py-2 rounded-pill">
+                            <i class="bi bi-pencil me-1"></i> Edit Today's Timings
+                        </a>
+                    {% endif %}
+                {% else %}
+                    <a href="{% url 'leave_list' %}" class="btn btn-outline-light rounded-pill px-4">
+                        <i class="bi bi-eye me-1"></i> View Leave Details
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- KEY METRICS ROW (WEEKLY AVG, MONTHLY AVG, NET DEFICIT/SURPLUS, LEAVES) -->
+<div class="row g-3 mb-4">
+    <!-- Weekly Average Card -->
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100 p-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="text-muted fw-semibold small text-uppercase">Weekly Average</span>
+                <div class="stat-icon bg-primary bg-opacity-10 text-primary">
+                    <i class="bi bi-calendar-week"></i>
+                </div>
+            </div>
+            <div class="fs-2 fw-bold text-dark mb-1">
+                {{ weekly_stats.avg_hours_formatted }}
+                <span class="fs-6 text-muted fw-normal">/ day</span>
+            </div>
+            <div class="d-flex align-items-center gap-2 mt-auto">
+                {% if weekly_stats.is_surplus %}
+                    <span class="badge badge-surplus px-2 py-1 rounded-pill">
+                        <i class="bi bi-arrow-up-right me-1"></i> {{ weekly_stats.diff_formatted }}
+                    </span>
+                    <span class="small text-muted">{{ weekly_stats.days_worked }} days worked</span>
+                {% else %}
+                    <span class="badge badge-deficit px-2 py-1 rounded-pill">
+                        <i class="bi bi-arrow-down-right me-1"></i> {{ weekly_stats.diff_formatted }}
+                    </span>
+                    <span class="small text-danger fw-semibold">Short this week</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Monthly Average Card -->
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100 p-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="text-muted fw-semibold small text-uppercase">Monthly Average ({{ monthly_stats.month_name }})</span>
+                <div class="stat-icon bg-info bg-opacity-10 text-info">
+                    <i class="bi bi-calendar3"></i>
+                </div>
+            </div>
+            <div class="fs-2 fw-bold text-dark mb-1">
+                {{ monthly_stats.avg_hours_formatted }}
+                <span class="fs-6 text-muted fw-normal">/ day</span>
+            </div>
+            <div class="d-flex align-items-center gap-2 mt-auto">
+                {% if monthly_stats.is_surplus %}
+                    <span class="badge badge-surplus px-2 py-1 rounded-pill">
+                        <i class="bi bi-check-lg me-1"></i> Target Met
+                    </span>
+                    <span class="small text-muted">{{ monthly_stats.days_worked }} days logged</span>
+                {% else %}
+                    <span class="badge badge-deficit px-2 py-1 rounded-pill">
+                        <i class="bi bi-exclamation-circle me-1"></i> Below {{ target_formatted }}
+                    </span>
+                    <span class="small text-danger">{{ monthly_stats.days_worked }} days logged</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Net Month Surplus / Deficit Card -->
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100 p-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="text-muted fw-semibold small text-uppercase">Monthly Balance</span>
+                {% if monthly_stats.is_surplus %}
+                    <div class="stat-icon bg-success bg-opacity-10 text-success">
+                        <i class="bi bi-graph-up-arrow"></i>
+                    </div>
+                {% else %}
+                    <div class="stat-icon bg-danger bg-opacity-10 text-danger">
+                        <i class="bi bi-graph-down-arrow"></i>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="fs-2 fw-bold mb-1 {% if monthly_stats.is_surplus %}text-success{% else %}text-danger{% endif %}">
+                {{ monthly_stats.diff_formatted }}
+            </div>
+            <div class="mt-auto">
+                {% if monthly_stats.is_surplus %}
+                    <span class="small text-success fw-semibold">
+                        <i class="bi bi-shield-check"></i> Safe from salary deduction!
+                    </span>
+                {% else %}
+                    <span class="small text-danger fw-semibold">
+                        <i class="bi bi-exclamation-triangle"></i> Salary Deduction Risk
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaves Taken Card -->
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100 p-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="text-muted fw-semibold small text-uppercase">Leaves Taken</span>
+                <div class="stat-icon bg-warning bg-opacity-10 text-warning">
+                    <i class="bi bi-cup-hot"></i>
+                </div>
+            </div>
+            <div class="fs-2 fw-bold text-dark mb-1">
+                {{ monthly_stats.total_leaves_month }} <span class="fs-6 text-muted fw-normal">days this month</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-auto">
+                <span class="small text-muted">{{ monthly_stats.total_leaves_year }} days in {{ monthly_stats.year }}</span>
+                <a href="{% url 'leave_list' %}" class="small text-decoration-none fw-semibold">Details &rarr;</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SALARY DEDUCTION WARNING ALERT (When running in deficit) -->
+{% if not monthly_stats.is_surplus and monthly_stats.days_worked > 0 %}
+<div class="alert alert-danger d-flex align-items-center gap-3 p-3 rounded-4 shadow-sm mb-4 border-danger">
+    <i class="bi bi-exclamation-octagon-fill fs-2 text-danger"></i>
+    <div class="flex-grow-1">
+        <h5 class="alert-heading fw-bold mb-1">Salary Deduction Warning</h5>
+        <p class="mb-0 small">
+            Your monthly average is currently <strong>{{ monthly_stats.avg_hours_formatted }}</strong>, which falls short of the required <strong>{{ target_formatted }}</strong> by <strong>{{ monthly_stats.deficit_hours }} hours</strong>.
+            {% if monthly_stats.hourly_rate > 0 %}
+                At your configured rate of ₹{{ monthly_stats.hourly_rate }}/hr, estimated risk is <strong>₹{{ monthly_stats.estimated_deduction }}</strong>.
+            {% endif %}
+            Please log extra hours in upcoming shifts to bring your average back above {{ target_formatted }}.
+        </p>
+    </div>
+</div>
+{% endif %}
+
+<!-- CHART & RECENT LOGS SECTION -->
+<div class="row g-4">
+    <!-- Daily Hours Chart -->
+    <div class="col-lg-8">
+        <div class="card h-100 p-3">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h5 class="fw-bold mb-0">Daily Working Hours ({{ monthly_stats.month_name }})</h5>
+                    <small class="text-muted">Target threshold line at {{ target_formatted }} (9.25 hrs)</small>
+                </div>
+                <div class="d-flex align-items-center gap-2 small">
+                    <span class="badge badge-surplus">&ge; {{ target_formatted }} (Good)</span>
+                    <span class="badge badge-deficit">&lt; {{ target_formatted }} (Deficit)</span>
+                </div>
+            </div>
+
+            <div style="min-height: 280px; position: relative;">
+                <canvas id="hoursChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Recent Logs Summary -->
+    <div class="col-lg-4">
+        <div class="card h-100 p-3">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold mb-0">Recent Entries</h5>
+                <a href="{% url 'history' %}" class="small text-decoration-none fw-semibold">View All</a>
+            </div>
+
+            {% if recent_records %}
+                <div class="list-group list-group-flush">
+                    {% for r in recent_records %}
+                        <div class="list-group-item px-0 py-2 border-bottom">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold small">{{ r.date|date:"D, M d" }}</span>
+                                {% if not r.logout_time %}
+                                    <span class="badge badge-ongoing rounded-pill">In Progress</span>
+                                {% elif r.diff_minutes >= 0 %}
+                                    <span class="badge badge-surplus rounded-pill">+{{ r.diff_formatted }}</span>
+                                {% else %}
+                                    <span class="badge badge-deficit rounded-pill">{{ r.diff_formatted }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="d-flex justify-content-between text-muted small">
+                                <span>{{ r.login_time|time:"h:i A" }} - {{ r.logout_time|time:"h:i A"|default:"Now" }}</span>
+                                <span class="fw-semibold text-dark">{{ r.worked_hours_formatted }}</span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-calendar-x fs-1 opacity-50 mb-2"></i>
+                    <p class="mb-0">No attendance entries recorded yet.</p>
+                    <a href="{% url 'attendance_create' %}" class="btn btn-sm btn-outline-primary mt-2">Log First Day</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const chartData = {{ chart_data_json|safe }};
+
+    if (chartData.labels && chartData.labels.length > 0) {
+        const ctx = document.getElementById('hoursChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartData.labels,
+                datasets: [
+                    {
+                        type: 'line',
+                        label: 'Required Target (9h 15m)',
+                        data: chartData.target_hours,
+                        borderColor: '#4f46e5',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        fill: false,
+                        pointRadius: 0,
+                        order: 1
+                    },
+                    {
+                        type: 'bar',
+                        label: 'Hours Worked',
+                        data: chartData.worked_hours,
+                        backgroundColor: chartData.background_colors,
+                        borderColor: chartData.border_colors,
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        order: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        suggestedMax: 12,
+                        title: {
+                            display: true,
+                            text: 'Hours'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return value + ' hrs';
+                            }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let val = context.raw;
+                                let h = Math.floor(val);
+                                let m = Math.round((val - h) * 60);
+                                return context.dataset.label + ': ' + h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } else {
+        document.getElementById('hoursChart').parentNode.innerHTML = 
+            '<div class="text-center py-5 text-muted"><i class="bi bi-bar-chart-line fs-1 opacity-50 mb-2"></i><p>No hours logged for this month yet. Punch in or log attendance to see the chart!</p></div>';
+    }
+</script>
+{% endblock %}

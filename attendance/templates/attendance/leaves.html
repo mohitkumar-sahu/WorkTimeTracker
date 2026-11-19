@@ -1,0 +1,124 @@
+{% extends 'attendance/base.html' %}
+
+{% block title %}Leave Tracker - WorkTime Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div>
+        <h2 class="fw-bold mb-1">Leave Management & Balance</h2>
+        <p class="text-muted mb-0">Track leaves taken so they don't count against your 9h 15m working average.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'leave_create' %}" class="btn btn-primary-custom rounded-pill px-3">
+            <i class="bi bi-plus-lg me-1"></i> Apply / Record Leave
+        </a>
+    </div>
+</div>
+
+<!-- LEAVE STATS OVERVIEW -->
+<div class="row g-3 mb-4">
+    <!-- Total Leaves in Year -->
+    <div class="col-md-4">
+        <div class="card h-100 p-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="text-muted fw-semibold small text-uppercase">Total Leaves ({{ selected_year }})</span>
+                <div class="stat-icon bg-warning bg-opacity-10 text-warning">
+                    <i class="bi bi-calendar-check"></i>
+                </div>
+            </div>
+            <div class="fs-1 fw-bold text-dark mb-1">
+                {{ leave_stats.total_days }} <span class="fs-6 text-muted fw-normal">days</span>
+            </div>
+            <span class="small text-muted">Approved leaves are excluded from working average penalty.</span>
+        </div>
+    </div>
+
+    <!-- Leave Type Breakdown -->
+    <div class="col-md-8">
+        <div class="card h-100 p-3">
+            <h6 class="fw-bold mb-3 text-uppercase small text-muted">Leave Breakdown by Category ({{ selected_year }})</h6>
+            <div class="row g-2">
+                {% for code, item in leave_stats.breakdown.items %}
+                    <div class="col-sm-6 col-md-3">
+                        <div class="p-2 border rounded-3 bg-light text-center">
+                            <div class="small text-muted text-truncate" title="{{ item.label }}">{{ item.label }}</div>
+                            <div class="fw-bold fs-5 text-dark">{{ item.count }} <small class="fw-normal text-muted">days</small></div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- YEAR SELECTOR FILTER -->
+<div class="card p-3 mb-4">
+    <form method="get" class="d-flex gap-2 align-items-center" style="max-width: 300px;">
+        <label class="form-label mb-0 fw-semibold text-nowrap">Select Year:</label>
+        <select name="year" class="form-select" onchange="this.form.submit()">
+            {% for y in years %}
+                <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+
+<!-- LEAVES TABLE -->
+<div class="card overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-4">Date</th>
+                    <th>Day</th>
+                    <th>Leave Category</th>
+                    <th>Duration</th>
+                    <th>Reason</th>
+                    <th class="text-end pe-4">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if leaves %}
+                    {% for l in leaves %}
+                        <tr>
+                            <td class="ps-4 fw-bold">
+                                {{ l.date|date:"M d, Y" }}
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-secondary border">{{ l.date|date:"l" }}</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">
+                                    {{ l.get_leave_type_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="fw-bold">{{ l.duration }} day</span>
+                                {% if l.duration == 0.5 %}
+                                    <span class="badge bg-secondary ms-1">Half Day</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted">
+                                {{ l.reason|default:"-" }}
+                            </td>
+                            <td class="text-end pe-4">
+                                <a href="{% url 'leave_delete' l.pk %}" class="btn btn-sm btn-outline-danger" title="Cancel Leave">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="bi bi-cup-hot fs-1 opacity-50 mb-2"></i>
+                            <p class="mb-0">No leaves recorded in {{ selected_year }}.</p>
+                            <a href="{% url 'leave_create' %}" class="btn btn-sm btn-primary-custom mt-2">Record a Leave</a>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

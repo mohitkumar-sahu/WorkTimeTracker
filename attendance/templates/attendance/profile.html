@@ -1,0 +1,79 @@
+{% extends 'attendance/base.html' %}
+
+{% block title %}Settings & Target Hours - WorkTime Tracker{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm p-4">
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="stat-icon bg-primary bg-opacity-10 text-primary">
+                    <i class="bi bi-gear"></i>
+                </div>
+                <div>
+                    <h4 class="fw-bold mb-0">Attendance Settings & Targets</h4>
+                    <small class="text-muted">Configure your company's required shift timings and deduction rules.</small>
+                </div>
+            </div>
+
+            <hr class="my-3">
+
+            <form method="post">
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger p-2 small">
+                        {% for err in form.non_field_errors %}
+                            <div>{{ err }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <div class="p-3 bg-light rounded-3 mb-3 border">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="bi bi-bullseye text-primary fs-5"></i>
+                        <span class="fw-bold">Current Daily Requirement:</span>
+                        <span class="badge bg-primary fs-6">{{ profile.daily_target_formatted }}</span>
+                    </div>
+                    <small class="text-muted">Your work hours each day are compared against this target. Surpluses and deficits are calculated automatically.</small>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Target Hours</label>
+                        {{ form.target_hours }}
+                        <small class="text-muted">{{ form.target_hours.help_text }}</small>
+                        {% if form.target_hours.errors %}
+                            <div class="text-danger small mt-1">{{ form.target_hours.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Target Minutes</label>
+                        {{ form.target_minutes }}
+                        <small class="text-muted">{{ form.target_minutes.help_text }}</small>
+                        {% if form.target_minutes.errors %}
+                            <div class="text-danger small mt-1">{{ form.target_minutes.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-semibold">Hourly Salary Rate (Optional)</label>
+                    {{ form.hourly_salary_rate }}
+                    <small class="text-muted">{{ form.hourly_salary_rate.help_text }}</small>
+                    {% if form.hourly_salary_rate.errors %}
+                        <div class="text-danger small mt-1">{{ form.hourly_salary_rate.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="d-flex justify-content-end gap-2">
+                    <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary px-4">Cancel</a>
+                    <button type="submit" class="btn btn-primary-custom px-4">
+                        <i class="bi bi-save me-1"></i> Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

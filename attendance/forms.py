@@ -1,0 +1,121 @@
+from django import forms
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.utils import timezone
+from .models import AttendanceRecord, LeaveRecord, UserProfile
+
+
+class AttendanceForm(forms.ModelForm):
+    class Meta:
+        model = AttendanceRecord
+        fields = ['date', 'login_time', 'logout_time', 'break_minutes', 'notes']
+        widgets = {
+            'date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'login_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+            'logout_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+            'break_minutes': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'step': 5}),
+            'notes': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Worked late for project release'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        if not self.instance.pk and not self.initial.get('date'):
+            self.initial['date'] = timezone.localdate()
+        if not self.instance.pk and not self.initial.get('break_minutes'):
+            self.initial['break_minutes'] = 0
+
+    def clean(self):
+        cleaned_data = super().clean()
+        date = cleaned_data.get('date')
+        user = self.user
+
+        if user and date:
+            qs = AttendanceRecord.objects.filter(user=user, date=date)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError(f"An attendance entry already exists for {date}. Please edit the existing entry instead.")
+
+        return cleaned_data
+
+
+class LeaveForm(forms.ModelForm):
+    duration = forms.ChoiceField(
+        choices=[(1.0, 'Full Day (1.0)'), (0.5, 'Half Day (0.5)')],
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    class Meta:
+        model = LeaveRecord
+        fields = ['date', 'leave_type', 'duration', 'reason']
+        widgets = {
+            'date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'leave_type': forms.Select(attrs={'class': 'form-select'}),
+            'reason': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Reason for leave (optional)'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        if not self.instance.pk and not self.initial.get('date'):
+            self.initial['date'] = timezone.localdate()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        date = cleaned_data.get('date')
+        user = self.user
+
+        if user and date:
+            qs = LeaveRecord.objects.filter(user=user, date=date)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError(f"A leave record already exists for {date}.")
+
+        return cleaned_data
+
+
+class UserProfileForm(forms.ModelForm):
+    class Meta:
+        model = UserProfile
+        fields = ['target_hours', 'target_minutes', 'hourly_salary_rate']
+        widgets = {
+            'target_hours': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 24}),
+            'target_minutes': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 59}),
+            'hourly_salary_rate': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'step': '0.01', 'placeholder': 'e.g. 500.00'}),
+        }
+        labels = {
+            'target_hours': 'Daily Target Hours',
+            'target_minutes': 'Daily Target Minutes',
+            'hourly_salary_rate': 'Hourly Salary Rate (₹ / $)',
+        }
+        help_texts = {
+            'target_hours': 'Currently set to 9 hours.',
+            'target_minutes': 'Currently set to 15 minutes (Total daily target: 9h 15m).',
+            'hourly_salary_rate': 'Used to calculate salary deduction estimates when hours fall short.',
+        }
+
+
+class UserRegistrationForm(forms.ModelForm):
+    password = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'form-control'}))
+    password_confirm = forms.CharField(
+        widget=forms.PasswordInput(attrs={'class': 'form-control'}),
+        label="Confirm Password"
+    )
+
+    class Meta:
+        model = User
+        fields = ['username', 'email']
+        widgets = {
+            'username': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        p1 = cleaned_data.get('password')
+        p2 = cleaned_data.get('password_confirm')
+        if p1 and p2 and p1 != p2:
+            self.add_error('password_confirm', "Passwords do not match.")
+        return cleaned_data
