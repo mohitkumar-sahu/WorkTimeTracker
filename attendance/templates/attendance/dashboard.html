@@ -60,20 +60,10 @@
                     {% endif %}
                 {% elif not today_record.logout_time %}
                     <h3 class="fw-bold mb-1 text-white">Clocked In at {{ today_record.login_time|time:"h:i A" }}</h3>
-                    <div class="mt-2 p-3 rounded-3" style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15);">
-                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
-                            <div>
-                                <div class="text-light opacity-75 small text-uppercase fw-semibold">Target Logout Time (to hit {{ target_formatted }})</div>
-                                <div class="fs-4 fw-bold text-warning">
-                                    <i class="bi bi-alarm me-1"></i> {{ today_record.expected_logout_time|time:"h:i A" }}
-                                </div>
-                            </div>
-                            <div class="border-start border-white border-opacity-25 ps-3">
-                                <div class="text-light opacity-75 small text-uppercase fw-semibold">Logged Duration So Far</div>
-                                <div class="fs-5 fw-bold text-white">
-                                    {{ today_record.get_current_elapsed_minutes|default:0 }} minutes elapsed
-                                </div>
-                            </div>
+                    <div class="mt-2 p-3 rounded-3 d-inline-block" style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15);">
+                        <div class="text-light opacity-75 small text-uppercase fw-semibold">Target Logout Time (to hit {{ target_formatted }})</div>
+                        <div class="fs-4 fw-bold text-warning">
+                            <i class="bi bi-alarm me-1"></i> {{ today_record.expected_logout_time|time:"h:i A" }}
                         </div>
                     </div>
                 {% else %}
