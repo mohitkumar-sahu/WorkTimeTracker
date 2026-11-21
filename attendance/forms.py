@@ -79,23 +79,26 @@ class LeaveForm(forms.ModelForm):
 class UserProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
-        fields = ['role', 'custom_role_title', 'target_hours', 'target_minutes']
+        fields = ['role', 'custom_role_title', 'target_hours', 'target_minutes', 'saturday_off_policy']
         widgets = {
             'role': forms.Select(attrs={'class': 'form-select', 'id': 'id_role'}),
             'custom_role_title': forms.TextInput(attrs={'class': 'form-control', 'id': 'id_custom_role_title', 'placeholder': 'e.g. DevOps Engineer'}),
             'target_hours': forms.NumberInput(attrs={'class': 'form-control', 'id': 'id_target_hours', 'min': 1, 'max': 24}),
             'target_minutes': forms.NumberInput(attrs={'class': 'form-control', 'id': 'id_target_minutes', 'min': 0, 'max': 59}),
+            'saturday_off_policy': forms.Select(attrs={'class': 'form-select', 'id': 'id_saturday_off_policy'}),
         }
         labels = {
             'role': 'Job Role',
             'custom_role_title': 'Custom Role Title',
             'target_hours': 'Daily Target Hours',
             'target_minutes': 'Daily Target Minutes',
+            'saturday_off_policy': 'Saturday Off Policy',
         }
         help_texts = {
             'role': 'Select your role (e.g. Developer, Tester, HR).',
             'target_hours': 'Working hours required per day.',
             'target_minutes': 'Working minutes required per day.',
+            'saturday_off_policy': 'All Sundays are fixed off. Choose which 2 Saturdays are off per month.',
         }
 
 

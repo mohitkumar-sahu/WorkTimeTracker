@@ -9,6 +9,8 @@ from attendance.services import (
     calculate_weekly_summary,
     calculate_monthly_summary,
     get_leave_statistics,
+    get_day_schedule_status,
+    get_month_schedule_summary,
     format_minutes_to_hm,
 )
 
@@ -171,6 +173,45 @@ class AttendanceCalculationTests(TestCase):
         self.assertEqual(profile.display_role, 'DevOps Engineer')
         self.assertEqual(profile.daily_target_minutes, 525)
         self.assertEqual(profile.daily_target_formatted, '8h 45m')
+
+    def test_startup_weekend_and_saturday_schedule(self):
+        # In November 2026:
+        # Sunday: Nov 1
+        sun_status = get_day_schedule_status(self.user, date(2026, 11, 1))
+        self.assertTrue(sun_status['is_sunday'])
+        self.assertTrue(sun_status['is_off_day'])
+        self.assertEqual(sun_status['label'], 'Sunday Off')
+
+        # 1st Saturday: Nov 7 -> Working Saturday
+        sat1_status = get_day_schedule_status(self.user, date(2026, 11, 7))
+        self.assertTrue(sat1_status['is_saturday'])
+        self.assertFalse(sat1_status['is_off_day'])
+        self.assertEqual(sat1_status['label'], '1st Saturday (Working)')
+
+        # 2nd Saturday: Nov 14 -> 2nd Sat Off (Company Off)
+        sat2_status = get_day_schedule_status(self.user, date(2026, 11, 14))
+        self.assertTrue(sat2_status['is_saturday'])
+        self.assertTrue(sat2_status['is_off_day'])
+        self.assertEqual(sat2_status['label'], '2nd Saturday Off')
+
+        # 3rd Saturday: Nov 21 -> Working Saturday
+        sat3_status = get_day_schedule_status(self.user, date(2026, 11, 21))
+        self.assertTrue(sat3_status['is_saturday'])
+        self.assertFalse(sat3_status['is_off_day'])
+
+        # 4th Saturday: Nov 28 -> 4th Sat Off (Company Off)
+        sat4_status = get_day_schedule_status(self.user, date(2026, 11, 28))
+        self.assertTrue(sat4_status['is_saturday'])
+        self.assertTrue(sat4_status['is_off_day'])
+        self.assertEqual(sat4_status['label'], '4th Saturday Off')
+
+        # Month schedule summary for Nov 2026: 30 days, 5 Sundays, 2 Off Sats, 2 Working Sats, 23 Expected Work Days
+        month_summary = get_month_schedule_summary(self.user, 2026, 11)
+        self.assertEqual(month_summary['total_days_in_month'], 30)
+        self.assertEqual(month_summary['sundays_count'], 5)
+        self.assertEqual(month_summary['off_saturdays_count'], 2)
+        self.assertEqual(month_summary['working_saturdays_count'], 2)
+        self.assertEqual(month_summary['expected_working_days'], 23)
 
     def test_web_views_render_successfully(self):
         self.client.login(username='testuser', password='password123')

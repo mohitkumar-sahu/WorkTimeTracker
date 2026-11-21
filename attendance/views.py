@@ -18,6 +18,7 @@ from .services import (
     calculate_monthly_summary,
     get_leave_statistics,
     get_chart_data_for_month,
+    get_day_schedule_status,
     format_minutes_to_hm,
 )
 
@@ -30,6 +31,7 @@ def dashboard(request):
     # Get or check today's attendance record
     today_record = AttendanceRecord.objects.filter(user=request.user, date=today).first()
     today_leave = LeaveRecord.objects.filter(user=request.user, date=today).first()
+    today_schedule = get_day_schedule_status(request.user, today)
 
     # Calculate summaries
     weekly_stats = calculate_weekly_summary(request.user, today)
@@ -48,6 +50,7 @@ def dashboard(request):
         'now_dt': now_dt,
         'today_record': today_record,
         'today_leave': today_leave,
+        'today_schedule': today_schedule,
         'weekly_stats': weekly_stats,
         'monthly_stats': monthly_stats,
         'leave_stats': leave_stats,

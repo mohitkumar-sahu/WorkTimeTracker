@@ -17,11 +17,23 @@ class UserProfile(models.Model):
         ('CUSTOM', 'Custom Role'),
     ]
 
+    SATURDAY_POLICY_CHOICES = [
+        ('SECOND_FOURTH', '2nd & 4th Saturday Off (2 Saturdays/month)'),
+        ('FIRST_THIRD', '1st & 3rd Saturday Off (2 Saturdays/month)'),
+        ('FLEXIBLE_TWO', 'Flexible 2 Saturdays Off (mark in Leaves)'),
+        ('ALL_SATURDAYS', 'All Saturdays Off (5-day work week)'),
+        ('NO_SATURDAYS', 'All Saturdays Working (6-day work week)'),
+    ]
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     role = models.CharField(max_length=30, choices=ROLE_CHOICES, default='DEVELOPER', help_text="Select your role")
     custom_role_title = models.CharField(max_length=50, blank=True, help_text="Custom role name")
     target_hours = models.PositiveIntegerField(default=9, help_text="Daily required working hours")
     target_minutes = models.PositiveIntegerField(default=15, help_text="Daily required working minutes")
+    saturday_off_policy = models.CharField(
+        max_length=20, choices=SATURDAY_POLICY_CHOICES, default='SECOND_FOURTH',
+        help_text="Company policy for Saturday off (All Sundays are fixed off)"
+    )
     hourly_salary_rate = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal('0.00'), blank=True,
         help_text="Optional hourly rate"
@@ -172,19 +184,19 @@ class AttendanceRecord(models.Model):
 
 class LeaveRecord(models.Model):
     LEAVE_CHOICES = [
-        ('CASUAL', 'Casual Leave (CL)'),
-        ('SICK', 'Sick Leave (SL)'),
-        ('PAID', 'Earned / Paid Leave (PL)'),
+        ('LEAVE', 'Personal Leave / Day Off'),
+        ('SICK', 'Sick Leave'),
         ('HALF_DAY', 'Half Day Leave'),
-        ('UNPAID', 'Unpaid Leave / LWP'),
-        ('COMP_OFF', 'Compensatory Off'),
+        ('SATURDAY_OFF', 'Company Saturday Off (2/month)'),
         ('HOLIDAY', 'Company / Public Holiday'),
+        ('UNPAID', 'Unpaid Leave / LWP'),
+        ('CASUAL', 'Casual Leave'),
         ('OTHER', 'Other'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='leaves')
     date = models.DateField(default=timezone.localdate)
-    leave_type = models.CharField(max_length=20, choices=LEAVE_CHOICES, default='CASUAL')
+    leave_type = models.CharField(max_length=20, choices=LEAVE_CHOICES, default='LEAVE')
     duration = models.DecimalField(
         max_digits=3, decimal_places=1, default=Decimal('1.0'),
         help_text="1.0 for Full Day, 0.5 for Half Day"

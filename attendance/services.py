@@ -27,6 +27,114 @@ def format_minutes_to_hm(minutes, show_sign=False):
         return f"{h}h {m:02d}m"
 
 
+def get_day_schedule_status(user, target_date):
+    """
+    Returns day schedule details based on startup weekend policy:
+    - Sundays are always fixed weekly off.
+    - 2 Saturdays per month are off (2nd & 4th Saturday by default).
+    - Remaining Saturdays and Monday-Friday are working days.
+    """
+    weekday = target_date.weekday()
+    ordinal_names = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th"}
+
+    if weekday == 6:  # Sunday
+        return {
+            'is_sunday': True,
+            'is_saturday': False,
+            'is_off_day': True,
+            'label': 'Sunday Off',
+            'short_badge': 'Sunday Off',
+            'badge_class': 'badge bg-secondary text-white',
+            'is_regular_working_day': False,
+        }
+    elif weekday == 5:  # Saturday
+        ordinal = (target_date.day - 1) // 7 + 1
+        ordinal_str = ordinal_names.get(ordinal, f"{ordinal}th")
+        policy = getattr(user.profile, 'saturday_off_policy', 'SECOND_FOURTH')
+
+        is_off = False
+        if policy == 'SECOND_FOURTH' and ordinal in (2, 4):
+            is_off = True
+        elif policy == 'FIRST_THIRD' and ordinal in (1, 3):
+            is_off = True
+        elif policy == 'ALL_SATURDAYS':
+            is_off = True
+        elif policy == 'NO_SATURDAYS':
+            is_off = False
+        elif policy == 'FLEXIBLE_TWO':
+            # Check if recorded as SATURDAY_OFF in leaves
+            is_off = LeaveRecord.objects.filter(user=user, date=target_date, leave_type='SATURDAY_OFF').exists()
+
+        if is_off:
+            return {
+                'is_sunday': False,
+                'is_saturday': True,
+                'saturday_ordinal': ordinal,
+                'is_off_day': True,
+                'label': f'{ordinal_str} Saturday Off',
+                'short_badge': f'{ordinal_str} Sat Off',
+                'badge_class': 'badge bg-info bg-opacity-25 text-info-emphasis border border-info',
+                'is_regular_working_day': False,
+            }
+        else:
+            return {
+                'is_sunday': False,
+                'is_saturday': True,
+                'saturday_ordinal': ordinal,
+                'is_off_day': False,
+                'label': f'{ordinal_str} Saturday (Working)',
+                'short_badge': f'{ordinal_str} Sat (Work)',
+                'badge_class': 'badge bg-warning bg-opacity-25 text-dark border border-warning',
+                'is_regular_working_day': True,
+            }
+    else:
+        return {
+            'is_sunday': False,
+            'is_saturday': False,
+            'is_off_day': False,
+            'label': 'Working Day',
+            'short_badge': 'Working Day',
+            'badge_class': 'badge bg-light text-dark border',
+            'is_regular_working_day': True,
+        }
+
+
+def get_month_schedule_summary(user, year, month):
+    """
+    Calculates expected working days, total Sundays, and the 2 off-Saturdays for the month.
+    """
+    total_days = calendar.monthrange(year, month)[1]
+    sundays = []
+    off_saturdays = []
+    working_saturdays = []
+    weekdays_count = 0
+
+    for day in range(1, total_days + 1):
+        d = date(year, month, day)
+        status = get_day_schedule_status(user, d)
+        if status['is_sunday']:
+            sundays.append(d)
+        elif status['is_saturday']:
+            if status['is_off_day']:
+                off_saturdays.append(d)
+            else:
+                working_saturdays.append(d)
+        else:
+            weekdays_count += 1
+
+    expected_working_days = weekdays_count + len(working_saturdays)
+
+    return {
+        'total_days_in_month': total_days,
+        'expected_working_days': expected_working_days,
+        'sundays_count': len(sundays),
+        'off_saturdays_count': len(off_saturdays),
+        'working_saturdays_count': len(working_saturdays),
+        'off_saturdays': off_saturdays,
+        'working_saturdays': working_saturdays,
+    }
+
+
 def get_week_bounds(target_date=None):
     """Returns (monday, sunday) dates for the week containing target_date."""
     if target_date is None:
@@ -68,9 +176,15 @@ def calculate_weekly_summary(user, target_date=None):
         total_target_minutes = 0
         diff_minutes = 0
 
+    # Week Saturday schedule status
+    saturday_date = monday + timedelta(days=5)
+    saturday_status = get_day_schedule_status(user, saturday_date)
+
     return {
         'monday': monday,
         'sunday': sunday,
+        'saturday_date': saturday_date,
+        'saturday_status': saturday_status,
         'days_worked': days_worked,
         'total_minutes': total_minutes,
         'total_hours_formatted': format_minutes_to_hm(total_minutes),
@@ -102,6 +216,9 @@ def calculate_monthly_summary(user, year=None, month=None):
         date__month=month
     ).order_by('date')
 
+    for r in records:
+        r.schedule_status = get_day_schedule_status(user, r.date)
+
     completed_records = [r for r in records if r.logout_time is not None]
     days_worked = len(completed_records)
     total_minutes = sum(r.get_worked_minutes() for r in completed_records)
@@ -130,13 +247,11 @@ def calculate_monthly_summary(user, year=None, month=None):
         total_target_minutes = 0
         diff_minutes = 0
 
-    # Calculate estimated deduction if deficit and hourly rate provided
-    hourly_rate = float(user.profile.hourly_salary_rate or 0)
     deficit_hours = max(0, -diff_minutes) / 60.0
-    estimated_deduction = round(deficit_hours * hourly_rate, 2)
-
-    # Month name
     month_name = calendar.month_name[month]
+
+    # Get startup schedule breakdown for this month
+    schedule_summary = get_month_schedule_summary(user, year, month)
 
     return {
         'year': year,
@@ -152,10 +267,9 @@ def calculate_monthly_summary(user, year=None, month=None):
         'diff_formatted': format_minutes_to_hm(diff_minutes, show_sign=True),
         'is_surplus': diff_minutes >= 0,
         'deficit_hours': round(deficit_hours, 2),
-        'hourly_rate': hourly_rate,
-        'estimated_deduction': estimated_deduction,
         'total_leaves_month': total_leaves_month,
         'total_leaves_year': total_leaves_year,
+        'schedule_summary': schedule_summary,
         'records': records,
         'leaves': leaves,
     }
@@ -182,7 +296,6 @@ def get_leave_statistics(user, year=None):
         if l.leave_type in breakdown:
             breakdown[l.leave_type]['count'] += val
 
-    # Filter breakdown to those with > 0 or all
     active_breakdown = {k: v for k, v in breakdown.items() if v['count'] > 0}
 
     return {
