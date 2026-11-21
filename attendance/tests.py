@@ -367,11 +367,12 @@ class AttendanceCalculationTests(TestCase):
         self.assertContains(res, "Hourly Deduction Rate")
         self.assertContains(res, "216.22")
 
-        # 4. History page shows salary rate and hourly rate insight
+        # 4. History page shows salary protection status and removes rate formula badges
         res = self.client.get('/history/?year=2026&month=11')
         self.assertEqual(res.status_code, 200)
-        self.assertContains(res, "Day Rate: ₹2000.00/d")
-        self.assertContains(res, "Hourly Rate: ₹216.22/hr")
+        self.assertContains(res, "Salary Protection Status:")
+        self.assertNotContains(res, "Day Rate:")
+        self.assertNotContains(res, "Hourly Rate:")
 
     def test_exact_1_hour_missed_salary_deduction(self):
         self.client.login(username='testuser', password='password123')
