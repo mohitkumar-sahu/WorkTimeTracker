@@ -141,7 +141,7 @@ class AttendanceCalculationTests(TestCase):
         # 1. Default should be Developer (9h 15m)
         self.assertEqual(self.user.profile.role, 'DEVELOPER')
         self.assertEqual(self.user.profile.daily_target_formatted, '9h 15m')
-        self.assertEqual(self.user.profile.display_role, 'Developer / Software Engineer')
+        self.assertEqual(self.user.profile.display_role, 'Developer')
 
         # 2. Update to Tester (9h 00m)
         profile = self.user.profile
@@ -149,7 +149,7 @@ class AttendanceCalculationTests(TestCase):
         profile.target_hours = 9
         profile.target_minutes = 0
         profile.save()
-        self.assertEqual(profile.display_role, 'QA / Tester')
+        self.assertEqual(profile.display_role, 'Tester')
         self.assertEqual(profile.daily_target_minutes, 540)
         self.assertEqual(profile.daily_target_formatted, '9h 0m')
 
@@ -158,7 +158,7 @@ class AttendanceCalculationTests(TestCase):
         profile.target_hours = 8
         profile.target_minutes = 30
         profile.save()
-        self.assertEqual(profile.display_role, 'HR / Human Resources')
+        self.assertEqual(profile.display_role, 'HR')
         self.assertEqual(profile.daily_target_minutes, 510)
         self.assertEqual(profile.daily_target_formatted, '8h 30m')
 

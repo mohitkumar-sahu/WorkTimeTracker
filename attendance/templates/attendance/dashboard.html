@@ -256,10 +256,7 @@
         <h5 class="alert-heading fw-bold mb-1">Salary Deduction Warning</h5>
         <p class="mb-0 small">
             Your monthly average is currently <strong>{{ monthly_stats.avg_hours_formatted }}</strong>, which falls short of the required <strong>{{ target_formatted }}</strong> by <strong>{{ monthly_stats.deficit_hours }} hours</strong>.
-            {% if monthly_stats.hourly_rate > 0 %}
-                At your configured rate of ₹{{ monthly_stats.hourly_rate }}/hr, estimated risk is <strong>₹{{ monthly_stats.estimated_deduction }}</strong>.
-            {% endif %}
-            Please log extra hours in upcoming shifts to bring your average back above {{ target_formatted }}.
+            Please log extra hours in upcoming shifts to bring your average back above {{ target_formatted }} and prevent salary deduction.
         </p>
     </div>
 </div>
