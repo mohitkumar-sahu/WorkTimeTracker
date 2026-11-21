@@ -2,4 +2,5 @@ venv/
 *.pyc
 __pycache__/
 *.sqlite3
+!attendance/db_template.sqlite3
 .DS_Store

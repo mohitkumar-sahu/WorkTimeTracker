@@ -86,23 +86,31 @@ IS_VERCEL = "VERCEL" in os.environ
 
 if IS_VERCEL:
     tmp_db = "/tmp/db.sqlite3"
+    template_db = os.path.join(BASE_DIR, "attendance", "db_template.sqlite3")
     root_db = os.path.join(BASE_DIR, "db.sqlite3")
-    if not os.path.exists(tmp_db) and os.path.exists(root_db):
-        try:
-            shutil.copy2(root_db, tmp_db)
-        except Exception:
-            pass
+    if not os.path.exists(tmp_db):
+        source_db = template_db if os.path.exists(template_db) else (root_db if os.path.exists(root_db) else None)
+        if source_db:
+            try:
+                tmp_copy = f"/tmp/db.sqlite3.tmp_{os.getpid()}"
+                shutil.copy2(source_db, tmp_copy)
+                os.replace(tmp_copy, tmp_db)
+            except Exception:
+                pass
 
 if "DATABASE_URL" in os.environ:
     import dj_database_url
     DATABASES = {
-        "default": dj_database_url.config(conn_max_age=600, ssl_require=True)
+        "default": dj_database_url.config(conn_max_age=0, ssl_require=True)
     }
 elif IS_VERCEL:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": "/tmp/db.sqlite3",
+            "OPTIONS": {
+                "timeout": 20,
+            },
         }
     }
 else:
