@@ -193,14 +193,9 @@
                                     {% if not r.logout_time %}
                                         <span class="text-muted">-</span>
                                     {% elif r.diff_minutes >= 0 %}
-                                        <span class="fw-bold text-success">+{{ r.diff_formatted }}</span>
+                                        <span class="fw-bold text-success">{{ r.diff_formatted }}</span>
                                     {% else %}
                                         <span class="fw-bold text-danger">{{ r.diff_formatted }}</span>
-                                        {% if r.salary_impact > 0 %}
-                                            <div class="text-danger small" style="font-size: 0.72rem;">
-                                                ({{ r.salary_impact_formatted }} cut)
-                                            </div>
-                                        {% endif %}
                                     {% endif %}
                                 </td>
                                 <td>

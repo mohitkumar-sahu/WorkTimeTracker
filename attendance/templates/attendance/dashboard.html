@@ -94,7 +94,7 @@
                         <div>
                             <div class="text-light opacity-75 small">Diff (vs {{ target_formatted }})</div>
                             {% if today_record.diff_minutes >= 0 %}
-                                <div class="fw-bold fs-5 text-success">+{{ today_record.diff_formatted }} Surplus</div>
+                                <div class="fw-bold fs-5 text-success">{{ today_record.diff_formatted }} Surplus</div>
                             {% else %}
                                 <div class="fw-bold fs-5 text-danger">{{ today_record.diff_formatted }} Deficit</div>
                             {% endif %}
@@ -389,7 +389,7 @@
                                 {% if not r.logout_time %}
                                     <span class="badge badge-ongoing rounded-pill">In Progress</span>
                                 {% elif r.diff_minutes >= 0 %}
-                                    <span class="badge badge-surplus rounded-pill">+{{ r.diff_formatted }}</span>
+                                    <span class="badge badge-surplus rounded-pill">{{ r.diff_formatted }}</span>
                                 {% else %}
                                     <span class="badge badge-deficit rounded-pill">{{ r.diff_formatted }}</span>
                                 {% endif %}

@@ -406,8 +406,9 @@ class AttendanceCalculationTests(TestCase):
         self.assertContains(res, "216.22")
         self.assertContains(res, "Est. Cut:")
 
-        # Check that history logs render the hourly cut on the day and summary
+        # Check that history logs render the hourly cut in monthly summary and time only in table
         res = self.client.get('/history/?year=2026&month=11')
         self.assertEqual(res.status_code, 200)
         self.assertContains(res, "Hourly Cut: -₹216.22")
-        self.assertContains(res, "-₹216.22 cut")
+        self.assertContains(res, "-1h 00m")
+        self.assertNotContains(res, "-₹216.22 cut")
