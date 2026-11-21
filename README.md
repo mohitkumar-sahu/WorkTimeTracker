@@ -102,3 +102,4 @@ source venv/bin/activate
 python manage.py test
 ```
 All unit tests and view assertions run in ~1 second.
+# WorkTimeTracker
