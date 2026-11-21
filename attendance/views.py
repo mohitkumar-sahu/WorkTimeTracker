@@ -514,6 +514,15 @@ def login_view(request):
         if form.is_valid():
             user = form.get_user()
             login(request, user)
+
+            # Check if user opted to remember credentials/session
+            if request.POST.get('remember_me'):
+                # 30-day persistent session
+                request.session.set_expiry(60 * 60 * 24 * 30)
+            else:
+                # Browser session (expires when browser is closed)
+                request.session.set_expiry(0)
+
             messages.success(request, f"Welcome back, {user.username}!")
             next_url = request.GET.get('next', 'dashboard')
             return redirect(next_url)
