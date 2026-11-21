@@ -271,13 +271,13 @@ class AttendanceCalculationTests(TestCase):
         self.assertNotIn(12, month_numbers)    # No December
         self.assertNotIn(10, month_numbers)    # No October
 
-    def test_profile_settings_user_id_username_and_password_reset(self):
+    def test_profile_settings_username_and_password_reset(self):
         self.client.login(username='testuser', password='password123')
         
-        # 1. Check User ID & Username are rendered
+        # 1. Check User ID is removed and Username is rendered
         res = self.client.get('/settings/')
         self.assertEqual(res.status_code, 200)
-        self.assertContains(res, f"User ID: #{self.user.id}")
+        self.assertNotContains(res, f"User ID: #{self.user.id}")
         self.assertContains(res, "Reset Password")
         self.assertContains(res, self.user.username)
 
@@ -302,3 +302,70 @@ class AttendanceCalculationTests(TestCase):
         self.client.logout()
         login_success = self.client.login(username='updated_worker', password='NewSecretPass123!')
         self.assertTrue(login_success)
+
+    def test_mark_festival_paid_leave_from_history(self):
+        self.client.login(username='testuser', password='password123')
+
+        # 1. Open History page, check Mark Festival / Paid Leave button exists
+        res = self.client.get('/history/')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Mark Festival / Paid Leave")
+        self.assertContains(res, "markPaidLeaveModal")
+
+        # 2. Mark a Manager-Announced Paid Leave (e.g. Diwali Festival)
+        res = self.client.post('/quick-mark-leave/', {
+            'date': '2026-11-12',
+            'leave_type': 'PAID',
+            'duration': '1.0',
+            'reason': 'Diwali Festival (Manager Announced)',
+            'next': 'history'
+        })
+        self.assertEqual(res.status_code, 302)
+        self.assertIn('/history/?year=2026&month=11', res.url)
+
+        # 3. Verify LeaveRecord exists in database
+        leave = LeaveRecord.objects.filter(user=self.user, date=date(2026, 11, 12)).first()
+        self.assertIsNotNone(leave)
+        self.assertEqual(leave.leave_type, 'PAID')
+        self.assertEqual(leave.reason, 'Diwali Festival (Manager Announced)')
+
+        # 4. Verify History page renders the Paid Festival Leave in banner and table
+        res = self.client.get('/history/?year=2026&month=11')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Diwali Festival (Manager Announced)")
+        self.assertContains(res, "Paid Festival Leaves & Holidays")
+
+    def test_monthly_salary_setting_and_daily_deduction_calculation(self):
+        self.client.login(username='testuser', password='password123')
+
+        # 1. Update Monthly Salary to 46,000 in Settings
+        res = self.client.post('/settings/', {
+            'action': 'update_profile',
+            'role': 'DEVELOPER',
+            'target_hours': 9,
+            'target_minutes': 15,
+            'monthly_salary': '46000.00',
+        })
+        self.assertEqual(res.status_code, 302)
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.monthly_salary, Decimal('46000.00'))
+
+        # 2. In November 2026: 30 days - 5 Sundays - 2 off Saturdays = 23 working days
+        # 1 day salary = 46000 / 23 = 2000.00 / day
+        # Daily target is 9h 15m = 9.25 hours
+        # Hourly rate = 2000 / 9.25 = ~216.22 / hr
+        salary_info = self.user.profile.get_salary_deduction_info(2026, 11)
+        self.assertEqual(salary_info['working_days'], 23)
+        self.assertEqual(salary_info['per_day_salary'], Decimal('2000.00'))
+        self.assertEqual(salary_info['per_hour_salary'], Decimal('216.22'))
+
+        # 3. Monthly summary reflects 1-day rate and displays on settings page
+        res = self.client.get('/settings/')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "1-Day Salary Deduction")
+        self.assertContains(res, "2000.00")
+
+        # 4. History page shows salary rate insight
+        res = self.client.get('/history/?year=2026&month=11')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Salary Rate: ₹2000.00 / day")

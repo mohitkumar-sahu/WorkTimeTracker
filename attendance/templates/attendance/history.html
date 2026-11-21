@@ -9,6 +9,9 @@
         <p class="text-muted mb-0">Detailed view of your login, logout, surplus and deficit records.</p>
     </div>
     <div class="d-flex flex-wrap gap-2 w-100 w-sm-auto justify-content-start justify-content-sm-end">
+        <button type="button" class="btn btn-warning text-dark rounded-pill px-3 py-2 flex-grow-1 flex-sm-grow-0 text-center fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#markPaidLeaveModal">
+            <i class="bi bi-gift-fill me-1"></i> Mark Festival / Paid Leave
+        </button>
         <a href="{% url 'export_attendance_csv' %}?year={{ selected_year }}&month={{ selected_month }}" class="btn btn-outline-success rounded-pill px-3 py-2 flex-grow-1 flex-sm-grow-0 text-center">
             <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export to CSV
         </a>
@@ -67,16 +70,71 @@
                 </div>
                 <div class="col-6 col-sm-3">
                     <div class="p-2 bg-light border rounded-3 h-100">
-                        <small class="text-muted d-block" style="font-size: 0.75rem;">Leaves</small>
+                        <small class="text-muted d-block" style="font-size: 0.75rem;">Leaves / Offs</small>
                         <span class="fw-bold text-warning fs-5">{{ monthly_stats.total_leaves_month }}</span>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- SALARY & DEDUCTION RATE INSIGHT (if salary is set) -->
+    {% if monthly_stats.per_day_salary > 0 %}
+        <div class="mt-3 pt-3 border-top d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
+                    <i class="bi bi-cash-stack me-1"></i> Salary Rate: ₹{{ monthly_stats.per_day_salary|floatformat:2 }} / day
+                </span>
+                <small class="text-muted">
+                    Based on ₹{{ user.profile.monthly_salary|floatformat:0 }} salary &divide; {{ monthly_stats.salary_info.working_days }} working days.
+                </small>
+            </div>
+            <div>
+                {% if monthly_stats.is_surplus %}
+                    <span class="badge bg-success px-3 py-2">
+                        <i class="bi bi-shield-check me-1"></i> Safe from salary deduction (₹0.00 cut)
+                    </span>
+                {% else %}
+                    <span class="badge bg-danger px-3 py-2">
+                        <i class="bi bi-exclamation-triangle me-1"></i> Est. Deficit Cut: ₹{{ monthly_stats.total_salary_deduction|floatformat:2 }}
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
 </div>
 
-<!-- ATTENDANCE TABLE -->
+<!-- MANAGER-ANNOUNCED FESTIVAL LEAVES & COMPANY HOLIDAYS BANNER -->
+{% if monthly_leaves %}
+<div class="card p-3 mb-4 border-0 shadow-sm" style="background: #fffbeb; border-left: 5px solid #f59e0b !important;">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge bg-warning text-dark fw-bold"><i class="bi bi-gift-fill me-1"></i> Paid Festival Leaves & Holidays</span>
+                <span class="text-muted small">Recorded for {{ month_name }} {{ selected_year }}:</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                {% for l in monthly_leaves %}
+                    <span class="badge bg-white text-dark border px-3 py-2 shadow-sm d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-calendar-event text-warning"></i>
+                        <strong>{{ l.date|date:"M d (D)" }}:</strong> {{ l.reason|default:l.get_leave_type_display }} ({{ l.duration }} day)
+                        <a href="{% url 'quick_cancel_leave' l.pk %}?next=history" class="text-danger ms-1" title="Remove this leave" onclick="return confirm('Remove this paid leave?');">
+                            <i class="bi bi-x-circle-fill"></i>
+                        </a>
+                    </span>
+                {% endfor %}
+            </div>
+        </div>
+        <div>
+            <button class="btn btn-sm btn-outline-dark rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#markPaidLeaveModal">
+                <i class="bi bi-plus-lg me-1"></i> Mark Another
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ATTENDANCE & LEAVES TABLE -->
 <div class="card overflow-hidden">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
@@ -86,7 +144,7 @@
                     <th>Day</th>
                     <th>Punch In</th>
                     <th>Punch Out</th>
-                    <th>Total Worked</th>
+                    <th>Total Worked / Reason</th>
                     <th>Target</th>
                     <th>Difference</th>
                     <th>Status</th>
@@ -94,72 +152,169 @@
                 </tr>
             </thead>
             <tbody>
-                {% if records %}
-                    {% for r in records %}
-                        <tr>
-                            <td class="ps-4 fw-bold">
-                                {{ r.date|date:"M d, Y" }}
-                            </td>
-                            <td>
-                                <span class="badge bg-light text-secondary border">{{ r.date|date:"l" }}</span>
-                            </td>
-                            <td>
-                                <i class="bi bi-box-arrow-in-right text-success me-1"></i>
-                                {{ r.login_time|time:"h:i A" }}
-                            </td>
-                            <td>
-                                {% if r.logout_time %}
-                                    <i class="bi bi-box-arrow-left text-danger me-1"></i>
-                                    {{ r.logout_time|time:"h:i A" }}
-                                {% else %}
-                                    <span class="badge badge-ongoing">In Progress</span>
-                                {% endif %}
-                            </td>
-                            <td class="fw-bold text-dark">
-                                {{ r.worked_hours_formatted }}
-                            </td>
-                            <td class="text-muted small">
-                                {{ user.profile.daily_target_formatted }}
-                            </td>
-                            <td>
-                                {% if not r.logout_time %}
-                                    <span class="text-muted">-</span>
-                                {% elif r.diff_minutes >= 0 %}
-                                    <span class="fw-bold text-success">+{{ r.diff_formatted }}</span>
-                                {% else %}
-                                    <span class="fw-bold text-danger">{{ r.diff_formatted }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if not r.logout_time %}
-                                    <span class="badge badge-ongoing">Working</span>
-                                {% elif r.diff_minutes >= 0 %}
-                                    <span class="badge badge-surplus">Surplus</span>
-                                {% else %}
-                                    <span class="badge badge-deficit">Deficit</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-end pe-4">
-                                <a href="{% url 'attendance_update' r.pk %}" class="btn btn-sm btn-outline-secondary me-1" title="Edit">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                                <a href="{% url 'attendance_delete' r.pk %}" class="btn btn-sm btn-outline-danger" title="Delete">
-                                    <i class="bi bi-trash"></i>
-                                </a>
-                            </td>
-                        </tr>
+                {% if table_rows %}
+                    {% for row in table_rows %}
+                        {% if row.record %}
+                            {% with r=row.record %}
+                            <tr>
+                                <td class="ps-4 fw-bold">
+                                    {{ r.date|date:"M d, Y" }}
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-secondary border">{{ r.date|date:"l" }}</span>
+                                    {% if row.leave %}
+                                        <span class="badge bg-warning bg-opacity-25 text-dark ms-1" title="{{ row.leave.reason }}">
+                                            <i class="bi bi-gift-fill text-warning"></i> {{ row.leave.reason }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <i class="bi bi-box-arrow-in-right text-success me-1"></i>
+                                    {{ r.login_time|time:"h:i A" }}
+                                </td>
+                                <td>
+                                    {% if r.logout_time %}
+                                        <i class="bi bi-box-arrow-left text-danger me-1"></i>
+                                        {{ r.logout_time|time:"h:i A" }}
+                                    {% else %}
+                                        <span class="badge badge-ongoing">In Progress</span>
+                                    {% endif %}
+                                </td>
+                                <td class="fw-bold text-dark">
+                                    {{ r.worked_hours_formatted }}
+                                </td>
+                                <td class="text-muted small">
+                                    {{ user.profile.daily_target_formatted }}
+                                </td>
+                                <td>
+                                    {% if not r.logout_time %}
+                                        <span class="text-muted">-</span>
+                                    {% elif r.diff_minutes >= 0 %}
+                                        <span class="fw-bold text-success">+{{ r.diff_formatted }}</span>
+                                    {% else %}
+                                        <span class="fw-bold text-danger">{{ r.diff_formatted }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if not r.logout_time %}
+                                        <span class="badge badge-ongoing">Working</span>
+                                    {% elif r.diff_minutes >= 0 %}
+                                        <span class="badge badge-surplus">Surplus</span>
+                                    {% else %}
+                                        <span class="badge badge-deficit">Deficit</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-4">
+                                    <a href="{% url 'attendance_update' r.pk %}" class="btn btn-sm btn-outline-secondary me-1" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="{% url 'attendance_delete' r.pk %}" class="btn btn-sm btn-outline-danger" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endwith %}
+                        {% elif row.leave %}
+                            {% with l=row.leave %}
+                            <tr style="background-color: #fffdf5;">
+                                <td class="ps-4 fw-bold text-dark">
+                                    {{ row.date|date:"M d, Y" }}
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-secondary border">{{ row.date|date:"l" }}</span>
+                                </td>
+                                <td class="text-muted">—</td>
+                                <td class="text-muted">—</td>
+                                <td>
+                                    <span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-2 py-1">
+                                        <i class="bi bi-gift-fill text-warning me-1"></i> {{ l.reason|default:l.get_leave_type_display }} ({{ l.duration }} day)
+                                    </span>
+                                </td>
+                                <td class="text-muted small">
+                                    {{ user.profile.daily_target_formatted }}
+                                </td>
+                                <td>
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success">
+                                        Paid Off (No Deficit)
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-success">Paid Leave</span>
+                                </td>
+                                <td class="text-end pe-4">
+                                    <a href="{% url 'quick_cancel_leave' l.pk %}?next=history" class="btn btn-sm btn-outline-danger" title="Remove Paid Leave" onclick="return confirm('Remove this paid leave?');">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endwith %}
+                        {% endif %}
                     {% endfor %}
                 {% else %}
                     <tr>
                         <td colspan="9" class="text-center py-5 text-muted">
                             <i class="bi bi-calendar-x fs-1 opacity-50 mb-2"></i>
-                            <p class="mb-0">No records found for {{ month_name }} {{ selected_year }}.</p>
-                            <a href="{% url 'attendance_create' %}" class="btn btn-sm btn-primary-custom mt-2">Log Hours Now</a>
+                            <p class="mb-0">No records or leaves found for {{ month_name }} {{ selected_year }}.</p>
+                            <div class="mt-2 d-flex justify-content-center gap-2">
+                                <a href="{% url 'attendance_create' %}" class="btn btn-sm btn-primary-custom">Log Hours Now</a>
+                                <button class="btn btn-sm btn-outline-warning text-dark" data-bs-toggle="modal" data-bs-target="#markPaidLeaveModal">Mark Festival Leave</button>
+                            </div>
                         </td>
                     </tr>
                 {% endif %}
             </tbody>
         </table>
+    </div>
+</div>
+
+<!-- MARK FESTIVAL / PAID LEAVE MODAL -->
+<div class="modal fade" id="markPaidLeaveModal" tabindex="-1" aria-labelledby="markPaidLeaveModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-warning bg-opacity-10 border-0">
+                <h5 class="modal-title fw-bold text-dark" id="markPaidLeaveModalLabel">
+                    <i class="bi bi-gift-fill text-warning me-2"></i> Mark Festival / Paid Leave
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'quick_mark_leave' %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="history">
+                <input type="hidden" name="leave_type" value="PAID">
+
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-3">
+                        Record a manager-announced festival holiday or paid leave (decided 2-3 days in advance or for any upcoming festival). 
+                        This day will be marked as paid and will <strong>not</strong> cause any salary deduction.
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Festival / Leave Date</label>
+                        <input type="date" name="date" class="form-control" value="{% now 'Y-m-d' %}" required>
+                        <small class="text-muted">You can select today, a date 2-3 days in advance, or any past festival date.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Festival Name / Reason</label>
+                        <input type="text" name="reason" class="form-control" placeholder="e.g. Diwali Festival, Eid Holiday, New Year, Christmas" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Duration</label>
+                        <select name="duration" class="form-select">
+                            <option value="1.0" selected>Full Day Paid Leave (1.0 day)</option>
+                            <option value="0.5">Half Day Paid Leave (0.5 day)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning text-dark fw-bold px-4">
+                        <i class="bi bi-check2-circle me-1"></i> Confirm & Mark Paid Leave
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 {% endblock %}

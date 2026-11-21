@@ -76,23 +76,26 @@ class LeaveForm(forms.ModelForm):
 class UserProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
-        fields = ['role', 'custom_role_title', 'target_hours', 'target_minutes']
+        fields = ['role', 'custom_role_title', 'target_hours', 'target_minutes', 'monthly_salary']
         widgets = {
             'role': forms.Select(attrs={'class': 'form-select', 'id': 'id_role'}),
             'custom_role_title': forms.TextInput(attrs={'class': 'form-control', 'id': 'id_custom_role_title', 'placeholder': 'e.g. DevOps Engineer'}),
             'target_hours': forms.NumberInput(attrs={'class': 'form-control', 'id': 'id_target_hours', 'min': 1, 'max': 24}),
             'target_minutes': forms.NumberInput(attrs={'class': 'form-control', 'id': 'id_target_minutes', 'min': 0, 'max': 59}),
+            'monthly_salary': forms.NumberInput(attrs={'class': 'form-control', 'id': 'id_monthly_salary', 'step': '0.01', 'min': '0', 'placeholder': 'e.g. 50000'}),
         }
         labels = {
             'role': 'Job Role',
             'custom_role_title': 'Custom Role Title',
             'target_hours': 'Daily Target Hours',
             'target_minutes': 'Daily Target Minutes',
+            'monthly_salary': 'Monthly Fixed Salary',
         }
         help_texts = {
             'role': 'Select your role (e.g. Developer, Tester, HR).',
             'target_hours': 'Working hours required per day.',
             'target_minutes': 'Working minutes required per day.',
+            'monthly_salary': 'Used to calculate daily salary deduction (Monthly Salary ÷ Total Working Days in Month).',
         }
 
 

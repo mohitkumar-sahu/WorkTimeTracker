@@ -253,6 +253,26 @@ def calculate_monthly_summary(user, year=None, month=None):
     # Get startup schedule breakdown for this month
     schedule_summary = get_month_schedule_summary(user, year, month)
 
+    # Salary and Deduction calculations:
+    # 1 day salary = Monthly Salary / Total Working Days in Month
+    salary_info = user.profile.get_salary_deduction_info(year, month)
+    per_day_salary = salary_info['per_day_salary']
+    per_hour_salary = salary_info['per_hour_salary']
+
+    # Unpaid leaves in this month
+    unpaid_leaves = leaves.filter(leave_type='UNPAID')
+    unpaid_leave_days = float(sum(l.duration for l in unpaid_leaves)) if unpaid_leaves.exists() else 0.0
+
+    # Deficit salary deduction (if negative diff):
+    if diff_minutes < 0 and per_hour_salary > 0:
+        deficit_mins = -diff_minutes
+        salary_deduction_deficit = round((Decimal(deficit_mins) / Decimal(60)) * per_hour_salary, 2)
+    else:
+        salary_deduction_deficit = Decimal('0.00')
+
+    unpaid_salary_deduction = round(Decimal(str(unpaid_leave_days)) * per_day_salary, 2)
+    total_salary_deduction = salary_deduction_deficit + unpaid_salary_deduction
+
     return {
         'year': year,
         'month': month,
@@ -270,6 +290,13 @@ def calculate_monthly_summary(user, year=None, month=None):
         'total_leaves_month': total_leaves_month,
         'total_leaves_year': total_leaves_year,
         'schedule_summary': schedule_summary,
+        'salary_info': salary_info,
+        'per_day_salary': per_day_salary,
+        'per_hour_salary': per_hour_salary,
+        'unpaid_leave_days': unpaid_leave_days,
+        'salary_deduction_deficit': salary_deduction_deficit,
+        'unpaid_salary_deduction': unpaid_salary_deduction,
+        'total_salary_deduction': total_salary_deduction,
         'records': records,
         'leaves': leaves,
     }

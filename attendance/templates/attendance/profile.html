@@ -13,7 +13,7 @@
             </div>
             <div>
                 <h3 class="fw-bold mb-0">Role & Work Time Settings</h3>
-                <small class="text-muted">Manage your user ID, username, password reset, and role working hours.</small>
+                <small class="text-muted">Manage your username, password reset, role working hours, and monthly salary.</small>
             </div>
         </div>
 
@@ -22,14 +22,11 @@
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 pb-3 border-bottom mb-3">
                 <div class="d-flex align-items-center gap-3">
                     <div class="stat-icon bg-light text-primary border rounded-circle" style="width: 52px; height: 52px;">
-                        <i class="bi bi-person-badge fs-3"></i>
+                        <i class="bi bi-person-circle fs-3"></i>
                     </div>
                     <div>
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <h5 class="fw-bold mb-0 text-dark">{{ user_obj.username }}</h5>
-                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">
-                                User ID: #{{ user_obj.id }}
-                            </span>
                         </div>
                         <small class="text-muted">Registered Member &bull; Role: <strong>{{ profile.display_role }}</strong></small>
                     </div>
@@ -46,15 +43,14 @@
                 {% csrf_token %}
                 <input type="hidden" name="action" value="update_username">
 
-                <div class="col-12 col-sm-4">
-                    <label class="form-label small fw-semibold text-muted text-uppercase">User ID (Permanent)</label>
-                    <input type="text" class="form-control bg-light" value="#{{ user_obj.id }}" readonly>
-                </div>
-                <div class="col-12 col-sm-5">
+                <div class="col-12 col-sm-8 col-md-9">
                     <label class="form-label small fw-semibold text-muted text-uppercase">Username</label>
-                    <input type="text" name="username" class="form-control" value="{{ user_obj.username }}" required>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light text-muted"><i class="bi bi-person"></i></span>
+                        <input type="text" name="username" class="form-control" value="{{ user_obj.username }}" placeholder="Enter username" required>
+                    </div>
                 </div>
-                <div class="col-12 col-sm-3">
+                <div class="col-12 col-sm-4 col-md-3">
                     <button type="submit" class="btn btn-outline-primary w-100 py-2">
                         <i class="bi bi-check2 me-1"></i> Update Username
                     </button>
@@ -62,13 +58,13 @@
             </form>
         </div>
 
-        <!-- 2. ROLE & DAILY WORKING HOURS CARD -->
+        <!-- 2. ROLE, WORKING HOURS & SALARY SETTINGS CARD -->
         <div class="card shadow-sm p-3 p-md-4 mb-4 border-0">
             <div class="d-flex align-items-center gap-2 mb-3">
                 <i class="bi bi-briefcase text-primary fs-5"></i>
-                <h5 class="fw-bold mb-0">Role & Daily Working Hours</h5>
+                <h5 class="fw-bold mb-0">Role, Daily Hours & Salary Settings</h5>
             </div>
-            <p class="text-muted small mb-4">Set your designation and required daily hours (all daily surplus and deficit stats will use this target).</p>
+            <p class="text-muted small mb-4">Set your designation, daily required target, and monthly salary for accurate daily salary deduction calculation.</p>
 
             <form method="post" id="settingsForm">
                 {% csrf_token %}
@@ -133,10 +129,55 @@
                     <small class="text-muted d-block mt-2">Enter the exact hours and minutes you are required to maintain daily.</small>
                 </div>
 
+                <!-- MONTHLY SALARY & 1-DAY DEDUCTION CALCULATION -->
+                <div class="p-3 bg-light bg-opacity-50 border rounded-3 mb-4" style="border-left: 4px solid #10b981 !important;">
+                    <label class="form-label fw-bold text-dark mb-1">
+                        <i class="bi bi-cash-stack text-success me-1"></i> Monthly Salary & 1-Day Salary Deduction Rate
+                    </label>
+                    <p class="text-muted small mb-3">
+                        Set your monthly salary. One day's salary deduction is automatically calculated as:
+                        <br>
+                        <code class="text-dark bg-white px-2 py-1 rounded border d-inline-block mt-1">1 Day Salary Deduction = Monthly Salary &divide; Total Working Days in Month</code>
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-muted text-uppercase">Monthly Fixed Salary</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white fw-bold text-success">₹</span>
+                            {{ form.monthly_salary }}
+                        </div>
+                        <small class="text-muted">{{ form.monthly_salary.help_text }}</small>
+                        {% if form.monthly_salary.errors %}
+                            <div class="text-danger small mt-1">{{ form.monthly_salary.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- LIVE SALARY DEDUCTION BREAKDOWN CARD -->
+                    <div class="p-3 bg-white border rounded-3 shadow-sm">
+                        <div class="row g-2 align-items-center text-center text-sm-start">
+                            <div class="col-12 col-sm-4 border-end-sm">
+                                <small class="text-muted d-block">Working Days (This Month)</small>
+                                <span class="fw-bold fs-5 text-dark" id="displayWorkingDays">{{ salary_info.working_days }}</span>
+                                <small class="text-muted d-block" style="font-size: 0.72rem;">Excl. Sundays & 2 Sat offs</small>
+                            </div>
+                            <div class="col-12 col-sm-4 border-end-sm">
+                                <small class="text-muted d-block">1-Day Salary Deduction</small>
+                                <span class="fw-bold fs-5 text-danger" id="displayDailyRate">₹{{ salary_info.per_day_salary|floatformat:2 }}</span>
+                                <small class="text-muted d-block" style="font-size: 0.72rem;">per unworked/unpaid day</small>
+                            </div>
+                            <div class="col-12 col-sm-4">
+                                <small class="text-muted d-block">Hourly Rate Equivalent</small>
+                                <span class="fw-bold fs-5 text-primary" id="displayHourlyRate">₹{{ salary_info.per_hour_salary|floatformat:2 }}</span>
+                                <small class="text-muted d-block" style="font-size: 0.72rem;">per hour deficit</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 pt-2 border-top">
                     <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary px-4 py-2">Cancel</a>
                     <button type="submit" class="btn btn-primary-custom px-4 py-2">
-                        <i class="bi bi-check-lg me-1"></i> Save Work Time Settings
+                        <i class="bi bi-check-lg me-1"></i> Save Role & Salary Settings
                     </button>
                 </div>
             </form>
@@ -255,5 +296,37 @@
             }
         });
     });
+
+    // 3. Live 1-Day Salary Deduction Calculator
+    const salaryInput = document.getElementById('id_monthly_salary');
+    const displayDailyRate = document.getElementById('displayDailyRate');
+    const displayHourlyRate = document.getElementById('displayHourlyRate');
+    const workingDays = {{ salary_info.working_days|default:23 }};
+    const targetHoursInput = document.getElementById('id_target_hours');
+    const targetMinsInput = document.getElementById('id_target_minutes');
+
+    function updateSalaryRates() {
+        if (!salaryInput || !displayDailyRate) return;
+        const salary = parseFloat(salaryInput.value) || 0;
+        const th = (targetHoursInput ? parseFloat(targetHoursInput.value) : 9) || 9;
+        const tm = (targetMinsInput ? parseFloat(targetMinsInput.value) : 15) || 15;
+        const totalTargetH = th + (tm / 60);
+
+        if (workingDays > 0 && salary > 0) {
+            const daily = salary / workingDays;
+            const hourly = totalTargetH > 0 ? (daily / totalTargetH) : 0;
+            displayDailyRate.textContent = '₹' + daily.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            displayHourlyRate.textContent = '₹' + hourly.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        } else {
+            displayDailyRate.textContent = '₹0.00';
+            displayHourlyRate.textContent = '₹0.00';
+        }
+    }
+
+    if (salaryInput) {
+        salaryInput.addEventListener('input', updateSalaryRates);
+    }
+    if (targetHoursInput) targetHoursInput.addEventListener('input', updateSalaryRates);
+    if (targetMinsInput) targetMinsInput.addEventListener('input', updateSalaryRates);
 </script>
 {% endblock %}

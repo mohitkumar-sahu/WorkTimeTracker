@@ -38,6 +38,10 @@ class UserProfile(models.Model):
         max_digits=10, decimal_places=2, default=Decimal('0.00'), blank=True,
         help_text="Optional hourly rate"
     )
+    monthly_salary = models.DecimalField(
+        max_digits=12, decimal_places=2, default=Decimal('0.00'), blank=True,
+        help_text="Monthly fixed salary (used to calculate daily salary deduction = Monthly Salary / Total Working Days in Month)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -57,6 +61,39 @@ class UserProfile(models.Model):
     @property
     def daily_target_formatted(self):
         return f"{self.target_hours}h {self.target_minutes}m"
+
+    def get_salary_deduction_info(self, year=None, month=None):
+        """
+        Calculates:
+        - Total working days in the month (excluding Sundays & off Saturdays)
+        - 1-day salary deduction rate = monthly_salary / total_working_days
+        - 1-hour salary deduction rate = 1-day salary / daily target hours
+        """
+        from .services import get_month_schedule_summary
+        if year is None or month is None:
+            today = timezone.localdate()
+            year = year or today.year
+            month = month or today.month
+
+        schedule = get_month_schedule_summary(self.user, year, month)
+        working_days = schedule['expected_working_days']
+
+        if working_days > 0 and self.monthly_salary > Decimal('0.00'):
+            per_day = self.monthly_salary / Decimal(working_days)
+            target_hours = Decimal(self.daily_target_minutes) / Decimal(60)
+            per_hour = per_day / target_hours if target_hours > 0 else Decimal('0.00')
+        else:
+            per_day = Decimal('0.00')
+            per_hour = Decimal('0.00')
+
+        return {
+            'monthly_salary': self.monthly_salary,
+            'working_days': working_days,
+            'per_day_salary': round(per_day, 2),
+            'per_hour_salary': round(per_hour, 2),
+            'year': year,
+            'month': month,
+        }
 
 
 @receiver(post_save, sender=User)
@@ -181,6 +218,7 @@ class AttendanceRecord(models.Model):
 
 class LeaveRecord(models.Model):
     LEAVE_CHOICES = [
+        ('PAID', 'Festival / Paid Leave (Manager Announced)'),
         ('LEAVE', 'Personal Leave / Day Off'),
         ('SICK', 'Sick Leave'),
         ('HALF_DAY', 'Half Day Leave'),

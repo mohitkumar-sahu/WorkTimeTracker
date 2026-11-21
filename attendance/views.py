@@ -103,7 +103,7 @@ def dashboard(request):
 @login_required
 @require_POST
 def quick_mark_leave(request):
-    """Allows 1-click marking of today or any selected date as company off / leave from the home page."""
+    """Allows 1-click marking of today or any selected date as company off / leave / festival from the home page or history page."""
     date_str = request.POST.get('date')
     if date_str:
         try:
@@ -122,6 +122,8 @@ def quick_mark_leave(request):
             reason = "Company declared Saturday Off"
         elif leave_type == 'HOLIDAY':
             reason = "Company declared Holiday"
+        elif leave_type == 'PAID':
+            reason = "Festival / Manager Announced Paid Leave"
         else:
             reason = "Leave / Day Off"
 
@@ -135,21 +137,37 @@ def quick_mark_leave(request):
         }
     )
 
-    messages.success(
-        request,
-        f"🌴 {leave_date.strftime('%A, %b %d')} marked as {leave.get_leave_type_display()}! "
-        f"This day is protected and will not reduce your daily working average."
-    )
+    if leave_type == 'PAID':
+        messages.success(
+            request,
+            f"🎉 {leave_date.strftime('%A, %b %d')} marked as Paid Festival Leave ({reason})! "
+            f"This day is fully paid and will not cause any salary deduction."
+        )
+    else:
+        messages.success(
+            request,
+            f"🌴 {leave_date.strftime('%A, %b %d')} marked as {leave.get_leave_type_display()}! "
+            f"This day is protected and will not reduce your daily working average."
+        )
+
+    next_url = request.POST.get('next')
+    if next_url == 'history':
+        return redirect(f"/history/?year={leave_date.year}&month={leave_date.month}")
     return redirect('dashboard')
 
 
 @login_required
 def quick_cancel_leave(request, pk):
-    """Cancels/unmarks a leave directly from the home page."""
+    """Cancels/unmarks a leave directly from the home page or history page."""
     leave = get_object_or_404(LeaveRecord, pk=pk, user=request.user)
+    leave_date = leave.date
     date_str = leave.date.strftime('%A, %b %d')
     leave.delete()
     messages.info(request, f"Removed leave for {date_str}.")
+
+    next_url = request.GET.get('next')
+    if next_url == 'history':
+        return redirect(f"/history/?year={leave_date.year}&month={leave_date.month}")
     return redirect('dashboard')
 
 
@@ -289,12 +307,34 @@ def attendance_history(request):
         date__month=selected_month
     ).order_by('-date')
 
+    monthly_leaves = LeaveRecord.objects.filter(
+        user=request.user,
+        date__year=selected_year,
+        date__month=selected_month
+    ).order_by('-date')
+
+    leaves_by_date = {l.date: l for l in monthly_leaves}
+    records_by_date = {r.date: r for r in records}
+
+    all_dates = sorted(set(list(records_by_date.keys()) + list(leaves_by_date.keys())), reverse=True)
+    table_rows = []
+    for d in all_dates:
+        table_rows.append({
+            'date': d,
+            'record': records_by_date.get(d),
+            'leave': leaves_by_date.get(d),
+            'schedule_status': get_day_schedule_status(request.user, d),
+        })
+
     context = {
         'selected_year': selected_year,
         'selected_month': selected_month,
         'month_name': calendar.month_name[selected_month],
         'monthly_stats': monthly_stats,
         'records': records,
+        'monthly_leaves': monthly_leaves,
+        'leaves_by_date': leaves_by_date,
+        'table_rows': table_rows,
         'years': years,
         'months': months,
         'year_months_json': json.dumps(year_months_map),
@@ -507,13 +547,16 @@ def profile_settings(request):
             form = UserProfileForm(request.POST, instance=profile)
             if form.is_valid():
                 form.save()
-                messages.success(request, "✅ Role & target work hours updated successfully!")
+                messages.success(request, "✅ Role, target hours, and salary settings updated successfully!")
                 return redirect('profile_settings')
+
+    salary_info = profile.get_salary_deduction_info()
 
     context = {
         'form': form,
         'password_form': password_form,
         'profile': profile,
+        'salary_info': salary_info,
         'user_obj': request.user,
     }
     return render(request, 'attendance/profile.html', context)
