@@ -1,7 +1,7 @@
 import csv
 import json
 import calendar
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout, authenticate, update_session_auth_hash
@@ -173,7 +173,83 @@ def quick_cancel_leave(request, pk):
     next_url = request.GET.get('next')
     if next_url == 'history':
         return redirect(f"/history/?year={leave_date.year}&month={leave_date.month}")
+    elif next_url == 'leaves':
+        return redirect('leave_list')
     return redirect('dashboard')
+
+
+@login_required
+@require_POST
+def quick_mark_leave_range(request):
+    """
+    Allows marking leaves across a date range (e.g. 8 days from date to date)
+    in a single action instead of entering day by day.
+    """
+    start_str = request.POST.get('start_date')
+    end_str = request.POST.get('end_date')
+
+    if not start_str or not end_str:
+        messages.error(request, "Please specify both From Date and To Date.")
+        return redirect('history')
+
+    try:
+        start_date = datetime.strptime(start_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_str, '%Y-%m-%d').date()
+    except ValueError:
+        messages.error(request, "Invalid date format provided.")
+        return redirect('history')
+
+    if end_date < start_date:
+        start_date, end_date = end_date, start_date
+
+    leave_type = request.POST.get('leave_type', 'LEAVE')
+    duration = Decimal(request.POST.get('duration', '1.0'))
+    reason = request.POST.get('reason', '').strip()
+    skip_off_days = request.POST.get('skip_off_days') in ('on', '1', 'true', 'True')
+
+    if not reason:
+        type_labels = dict(LeaveRecord.LEAVE_CHOICES)
+        reason = type_labels.get(leave_type, "Leave / Day Off")
+
+    current_date = start_date
+    marked_dates = []
+    skipped_count = 0
+
+    while current_date <= end_date:
+        if skip_off_days:
+            schedule = get_day_schedule_status(request.user, current_date)
+            if schedule['is_off_day']:
+                skipped_count += 1
+                current_date += timedelta(days=1)
+                continue
+
+        LeaveRecord.objects.update_or_create(
+            user=request.user,
+            date=current_date,
+            defaults={
+                'leave_type': leave_type,
+                'duration': duration,
+                'reason': reason,
+            }
+        )
+        marked_dates.append(current_date)
+        current_date += timedelta(days=1)
+
+    count = len(marked_dates)
+    if count > 0:
+        skip_msg = f" (skipped {skipped_count} weekly off{'s' if skipped_count != 1 else ''})" if skipped_count > 0 else ""
+        messages.success(
+            request,
+            f"🌴 Successfully marked {count} day{'s' if count != 1 else ''} of leave from "
+            f"{start_date.strftime('%b %d, %Y')} to {end_date.strftime('%b %d, %Y')}{skip_msg} ({reason})!"
+        )
+    else:
+        messages.warning(request, "No leave dates were marked because all dates in the range were already scheduled company offs.")
+
+    next_url = request.POST.get('next')
+    if next_url == 'leaves':
+        return redirect('leave_list')
+    return redirect(f"/history/?year={start_date.year}&month={start_date.month}")
 
 
 @login_required

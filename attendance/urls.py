@@ -6,6 +6,7 @@ urlpatterns = [
     path('punch-in/', views.quick_punch_in, name='quick_punch_in'),
     path('punch-out/', views.quick_punch_out, name='quick_punch_out'),
     path('quick-mark-leave/', views.quick_mark_leave, name='quick_mark_leave'),
+    path('quick-mark-leave-range/', views.quick_mark_leave_range, name='quick_mark_leave_range'),
     path('quick-cancel-leave/<int:pk>/', views.quick_cancel_leave, name='quick_cancel_leave'),
     path('attendance/log/', views.attendance_create, name='attendance_create'),
     path('attendance/<int:pk>/edit/', views.attendance_update, name='attendance_update'),

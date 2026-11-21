@@ -9,8 +9,11 @@
         <p class="text-muted mb-0">Track leaves taken so they don't count against your daily working average.</p>
     </div>
     <div class="d-flex flex-wrap gap-2 w-100 w-sm-auto justify-content-start justify-content-sm-end">
+        <button type="button" class="btn btn-outline-primary rounded-pill px-3 py-2 flex-grow-1 flex-sm-grow-0 text-center fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#markDateRangeLeaveModal">
+            <i class="bi bi-calendar-range me-1"></i> Mark Leave (Date Range)
+        </button>
         <a href="{% url 'leave_create' %}" class="btn btn-primary-custom rounded-pill px-3 py-2 flex-grow-1 flex-sm-grow-0 text-center">
-            <i class="bi bi-plus-lg me-1"></i> Apply / Record Leave
+            <i class="bi bi-plus-lg me-1"></i> Apply / Record Single Leave
         </a>
     </div>
 </div>
@@ -121,4 +124,159 @@
         </table>
     </div>
 </div>
+
+<!-- MARK LEAVE ACROSS DATE RANGE MODAL -->
+<div class="modal fade" id="markDateRangeLeaveModal" tabindex="-1" aria-labelledby="markDateRangeLeaveModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary bg-opacity-10 border-0">
+                <h5 class="modal-title fw-bold text-dark" id="markDateRangeLeaveModalLabel">
+                    <i class="bi bi-calendar-range text-primary me-2"></i> Mark Leave Across Date Range
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'quick_mark_leave_range' %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="leaves">
+
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-3">
+                        Taking multiple days off (e.g. 5, 8, or 10 consecutive days)? 
+                        Specify the start and end dates below to mark your entire leave in one click instead of recording each day manually.
+                    </p>
+
+                    <!-- Date Range Inputs -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small text-muted text-uppercase">From Date</label>
+                            <input type="date" name="start_date" id="leavesRangeStartDate" class="form-control" value="{% now 'Y-m-d' %}" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small text-muted text-uppercase">To Date</label>
+                            <input type="date" name="end_date" id="leavesRangeEndDate" class="form-control" value="{% now 'Y-m-d' %}" required>
+                        </div>
+                    </div>
+
+                    <!-- Live Days Count Summary Badge -->
+                    <div class="p-2 mb-3 rounded-3 bg-light border text-center small" id="leavesRangeSummaryBadge">
+                        Selected: <strong class="text-primary" id="leavesRangeDaysCount">1 calendar day</strong> &bull; <span class="text-muted" id="leavesRangeDatesText">Today</span>
+                    </div>
+
+                    <!-- Leave Category -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted text-uppercase">Leave Type</label>
+                        <select name="leave_type" class="form-select" required>
+                            <option value="LEAVE" selected>🏖️ Personal Leave / Vacation / Day Off</option>
+                            <option value="SICK">🤒 Sick Leave</option>
+                            <option value="PAID">🎈 Festival / Paid Leave (Manager Announced)</option>
+                            <option value="CASUAL">☕ Casual Leave</option>
+                            <option value="HALF_DAY">🌓 Half Day Leave</option>
+                            <option value="UNPAID">🚫 Unpaid Leave / Loss of Pay (LWP)</option>
+                            <option value="SATURDAY_OFF">🏢 Company Saturday Off</option>
+                            <option value="HOLIDAY">🎈 Company / Public Holiday</option>
+                            <option value="OTHER">📝 Other</option>
+                        </select>
+                    </div>
+
+                    <!-- Duration Per Day -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted text-uppercase">Duration Per Day</label>
+                        <select name="duration" class="form-select">
+                            <option value="1.0" selected>Full Day Leave (1.0 day / day)</option>
+                            <option value="0.5">Half Day Leave (0.5 day / day)</option>
+                        </select>
+                    </div>
+
+                    <!-- Skip Scheduled Off-Days Checkbox -->
+                    <div class="form-check form-switch mb-3 p-2 ps-5 rounded-3 bg-light border">
+                        <input class="form-check-input" type="checkbox" name="skip_off_days" id="leavesSkipOffDaysCheck" checked>
+                        <label class="form-check-label small fw-semibold text-dark" for="leavesSkipOffDaysCheck">
+                            Skip Sundays & Official Off-Days (Recommended)
+                        </label>
+                        <div class="text-muted" style="font-size: 0.72rem;">
+                            If checked, Sundays and official company off-days inside your selected range will remain as regular weekly offs.
+                        </div>
+                    </div>
+
+                    <!-- Reason / Note -->
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold small text-muted text-uppercase">Reason / Note (Optional)</label>
+                        <input type="text" name="reason" class="form-control" placeholder="e.g. Annual Vacation, Family Function, Medical Leave, 8 Days Trip">
+                    </div>
+                </div>
+
+                <div class="modal-footer border-0 bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom px-4 fw-bold">
+                        <i class="bi bi-check2-circle me-1"></i> Confirm & Mark Leaves
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const lStartInput = document.getElementById('leavesRangeStartDate');
+    const lEndInput = document.getElementById('leavesRangeEndDate');
+    const lSkipCheck = document.getElementById('leavesSkipOffDaysCheck');
+    const lCountElem = document.getElementById('leavesRangeDaysCount');
+    const lDatesElem = document.getElementById('leavesRangeDatesText');
+
+    function updateLeavesRangeSummary() {
+        if (!lStartInput || !lEndInput) return;
+        const sVal = lStartInput.value;
+        const eVal = lEndInput.value;
+        if (!sVal || !eVal) return;
+
+        const s = new Date(sVal + 'T00:00:00');
+        const e = new Date(eVal + 'T00:00:00');
+
+        if (e < s) {
+            lCountElem.textContent = "Invalid Range";
+            lDatesElem.textContent = "To Date must be equal to or after From Date";
+            lCountElem.className = "text-danger";
+            return;
+        }
+
+        lCountElem.className = "text-primary";
+        const diffDays = Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1;
+
+        let workingCount = 0;
+        let sundaysCount = 0;
+        let curr = new Date(s);
+        while (curr <= e) {
+            if (curr.getDay() === 0) {
+                sundaysCount++;
+            } else {
+                workingCount++;
+            }
+            curr.setDate(curr.getDate() + 1);
+        }
+
+        const sStr = s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const eStr = e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+        if (lSkipCheck && lSkipCheck.checked && sundaysCount > 0) {
+            lCountElem.textContent = `${diffDays} calendar days (${diffDays - sundaysCount} working days to mark)`;
+        } else {
+            lCountElem.textContent = `${diffDays} day${diffDays !== 1 ? 's' : ''}`;
+        }
+        lDatesElem.textContent = `${sStr} - ${eStr}`;
+    }
+
+    if (lStartInput && lEndInput) {
+        lStartInput.addEventListener('change', function() {
+            if (lEndInput.value < this.value) {
+                lEndInput.value = this.value;
+            }
+            updateLeavesRangeSummary();
+        });
+        lEndInput.addEventListener('change', updateLeavesRangeSummary);
+        if (lSkipCheck) lSkipCheck.addEventListener('change', updateLeavesRangeSummary);
+        updateLeavesRangeSummary();
+    }
+</script>
 {% endblock %}

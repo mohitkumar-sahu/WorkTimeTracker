@@ -488,3 +488,59 @@ class AttendanceCalculationTests(TestCase):
         self.assertContains(res, "Deficit Recovery Planner")
         self.assertContains(res, "Compensatory")
         self.assertContains(res, "Live Calculator")
+
+    def test_quick_mark_leave_range_all_days(self):
+        self.client.login(username='testuser', password='password123')
+        # Mark 8 days from Nov 9 to Nov 16 without skipping weekends
+        res = self.client.post('/quick-mark-leave-range/', {
+            'start_date': '2026-11-09',
+            'end_date': '2026-11-16',
+            'leave_type': 'LEAVE',
+            'duration': '1.0',
+            'reason': '8 Days Family Vacation',
+            'skip_off_days': '0',
+            'next': 'history'
+        })
+        self.assertEqual(res.status_code, 302)
+        self.assertIn('/history/?year=2026&month=11', res.url)
+
+        # 8 consecutive records should be created
+        leaves = LeaveRecord.objects.filter(
+            user=self.user,
+            date__range=['2026-11-09', '2026-11-16']
+        ).order_by('date')
+        self.assertEqual(leaves.count(), 8)
+        self.assertEqual(leaves.first().reason, '8 Days Family Vacation')
+        self.assertEqual(leaves.last().reason, '8 Days Family Vacation')
+
+    def test_quick_mark_leave_range_skipping_off_days(self):
+        self.client.login(username='testuser', password='password123')
+        # Nov 9 (Mon) to Nov 16 (Mon) = 8 calendar days
+        # Nov 14 is 2nd Saturday (off) and Nov 15 is Sunday (off)
+        res = self.client.post('/quick-mark-leave-range/', {
+            'start_date': '2026-11-09',
+            'end_date': '2026-11-16',
+            'leave_type': 'SICK',
+            'duration': '1.0',
+            'reason': 'Medical Recovery',
+            'skip_off_days': '1',
+            'next': 'history'
+        })
+        self.assertEqual(res.status_code, 302)
+
+        # Should skip Sunday Nov 15 and 2nd Saturday Nov 14 (leaving 6 working days)
+        leaves = LeaveRecord.objects.filter(
+            user=self.user,
+            date__range=['2026-11-09', '2026-11-16']
+        )
+        self.assertEqual(leaves.count(), 6)
+        self.assertFalse(LeaveRecord.objects.filter(user=self.user, date=date(2026, 11, 15)).exists())
+
+    def test_history_page_contains_date_range_leave_option(self):
+        self.client.login(username='testuser', password='password123')
+        res = self.client.get('/history/?year=2026&month=11')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Mark Leave (Date Range)")
+        self.assertContains(res, "markDateRangeLeaveModal")
+        self.assertContains(res, "From Date")
+        self.assertContains(res, "To Date")
