@@ -359,13 +359,55 @@ class AttendanceCalculationTests(TestCase):
         self.assertEqual(salary_info['per_day_salary'], Decimal('2000.00'))
         self.assertEqual(salary_info['per_hour_salary'], Decimal('216.22'))
 
-        # 3. Monthly summary reflects 1-day rate and displays on settings page
+        # 3. Monthly summary reflects 1-day rate and hourly rate on settings page
         res = self.client.get('/settings/')
         self.assertEqual(res.status_code, 200)
-        self.assertContains(res, "1-Day Salary Deduction")
+        self.assertContains(res, "1-Day Salary Rate")
         self.assertContains(res, "2000.00")
+        self.assertContains(res, "Hourly Deduction Rate")
+        self.assertContains(res, "216.22")
 
-        # 4. History page shows salary rate insight
+        # 4. History page shows salary rate and hourly rate insight
         res = self.client.get('/history/?year=2026&month=11')
         self.assertEqual(res.status_code, 200)
-        self.assertContains(res, "Salary Rate: ₹2000.00 / day")
+        self.assertContains(res, "Day Rate: ₹2000.00/d")
+        self.assertContains(res, "Hourly Rate: ₹216.22/hr")
+
+    def test_exact_1_hour_missed_salary_deduction(self):
+        self.client.login(username='testuser', password='password123')
+
+        # Set user's monthly salary to 46,000 (hourly rate: 216.22)
+        self.user.profile.monthly_salary = Decimal('46000.00')
+        self.user.profile.save()
+
+        # In November 2026: Working day Nov 2
+        # Target is 9h 15m (09:30 to 18:45 = 555 mins)
+        # If user logs out 1 hour early at 17:45 (worked 8h 15m = 495 mins -> missed 60 mins / 1 hour)
+        AttendanceRecord.objects.create(
+            user=self.user,
+            date=date(2026, 11, 2),
+            login_time=time(9, 30),
+            logout_time=time(17, 45)
+        )
+
+        # Calculate monthly summary
+        summary = calculate_monthly_summary(self.user, 2026, 11)
+        self.assertEqual(summary['diff_minutes'], -60)  # Exactly 1 hour missed!
+        self.assertEqual(summary['diff_formatted'], "-1h 00m")
+        self.assertEqual(summary['per_hour_salary'], Decimal('216.22'))
+        # 1 hour * 216.22 = 216.22 deduction
+        self.assertEqual(summary['salary_deduction_deficit'], Decimal('216.22'))
+        self.assertEqual(summary['estimated_payable_salary'], Decimal('45783.78'))
+
+        # Check that dashboard renders the hourly cut
+        res = self.client.get('/')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Hourly Deduction Risk")
+        self.assertContains(res, "216.22")
+        self.assertContains(res, "Est. Cut:")
+
+        # Check that history logs render the hourly cut on the day and summary
+        res = self.client.get('/history/?year=2026&month=11')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Hourly Cut: -₹216.22")
+        self.assertContains(res, "-₹216.22 cut")

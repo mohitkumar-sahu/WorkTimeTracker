@@ -273,6 +273,16 @@ def calculate_monthly_summary(user, year=None, month=None):
     unpaid_salary_deduction = round(Decimal(str(unpaid_leave_days)) * per_day_salary, 2)
     total_salary_deduction = salary_deduction_deficit + unpaid_salary_deduction
 
+    missed_minutes = max(0, -diff_minutes)
+    missed_hours_formatted = format_minutes_to_hm(missed_minutes)
+    missed_hours_decimal = round(missed_minutes / 60.0, 2)
+    per_minute_salary = salary_info.get('per_minute_salary', Decimal('0.00'))
+
+    if user.profile.monthly_salary > Decimal('0.00'):
+        estimated_payable_salary = max(Decimal('0.00'), user.profile.monthly_salary - total_salary_deduction)
+    else:
+        estimated_payable_salary = Decimal('0.00')
+
     return {
         'year': year,
         'month': month,
@@ -287,16 +297,21 @@ def calculate_monthly_summary(user, year=None, month=None):
         'diff_formatted': format_minutes_to_hm(diff_minutes, show_sign=True),
         'is_surplus': diff_minutes >= 0,
         'deficit_hours': round(deficit_hours, 2),
+        'missed_minutes': missed_minutes,
+        'missed_hours_formatted': missed_hours_formatted,
+        'missed_hours_decimal': missed_hours_decimal,
         'total_leaves_month': total_leaves_month,
         'total_leaves_year': total_leaves_year,
         'schedule_summary': schedule_summary,
         'salary_info': salary_info,
         'per_day_salary': per_day_salary,
         'per_hour_salary': per_hour_salary,
+        'per_minute_salary': per_minute_salary,
         'unpaid_leave_days': unpaid_leave_days,
         'salary_deduction_deficit': salary_deduction_deficit,
         'unpaid_salary_deduction': unpaid_salary_deduction,
         'total_salary_deduction': total_salary_deduction,
+        'estimated_payable_salary': estimated_payable_salary,
         'records': records,
         'leaves': leaves,
     }

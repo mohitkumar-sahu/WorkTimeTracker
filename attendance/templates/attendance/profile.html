@@ -152,23 +152,53 @@
                         {% endif %}
                     </div>
 
-                    <!-- LIVE SALARY DEDUCTION BREAKDOWN CARD -->
-                    <div class="p-3 bg-white border rounded-3 shadow-sm">
+                    <!-- LIVE SALARY & HOURLY DEDUCTION BREAKDOWN CARD -->
+                    <div class="p-3 bg-white border rounded-3 shadow-sm mb-3">
                         <div class="row g-2 align-items-center text-center text-sm-start">
-                            <div class="col-12 col-sm-4 border-end-sm">
-                                <small class="text-muted d-block">Working Days (This Month)</small>
+                            <div class="col-6 col-sm-3 border-end-sm">
+                                <small class="text-muted d-block">Working Days (Month)</small>
                                 <span class="fw-bold fs-5 text-dark" id="displayWorkingDays">{{ salary_info.working_days }}</span>
                                 <small class="text-muted d-block" style="font-size: 0.72rem;">Excl. Sundays & 2 Sat offs</small>
                             </div>
-                            <div class="col-12 col-sm-4 border-end-sm">
-                                <small class="text-muted d-block">1-Day Salary Deduction</small>
-                                <span class="fw-bold fs-5 text-danger" id="displayDailyRate">₹{{ salary_info.per_day_salary|floatformat:2 }}</span>
+                            <div class="col-6 col-sm-3 border-end-sm">
+                                <small class="text-muted d-block">1-Day Salary Rate</small>
+                                <span class="fw-bold fs-5 text-dark" id="displayDailyRate">₹{{ salary_info.per_day_salary|floatformat:2 }}</span>
                                 <small class="text-muted d-block" style="font-size: 0.72rem;">per unworked/unpaid day</small>
                             </div>
-                            <div class="col-12 col-sm-4">
-                                <small class="text-muted d-block">Hourly Rate Equivalent</small>
-                                <span class="fw-bold fs-5 text-primary" id="displayHourlyRate">₹{{ salary_info.per_hour_salary|floatformat:2 }}</span>
-                                <small class="text-muted d-block" style="font-size: 0.72rem;">per hour deficit</small>
+                            <div class="col-6 col-sm-3 border-end-sm">
+                                <small class="text-muted d-block">Hourly Deduction Rate</small>
+                                <span class="fw-bold fs-5 text-danger" id="displayHourlyRate">₹{{ salary_info.per_hour_salary|floatformat:2 }}</span>
+                                <small class="text-muted d-block" style="font-size: 0.72rem;">per 1 hour missed</small>
+                            </div>
+                            <div class="col-6 col-sm-3">
+                                <small class="text-muted d-block">Per-Minute Rate</small>
+                                <span class="fw-bold fs-5 text-primary" id="displayMinuteRate">₹{{ salary_info.per_minute_salary|floatformat:2 }}</span>
+                                <small class="text-muted d-block" style="font-size: 0.72rem;">per 1 minute missed</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- HOURLY SALARY DEDUCTION SIMULATOR BOX -->
+                    <div class="p-3 rounded-3 border" style="background: #f8fafc;">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-calculator text-primary fs-5"></i>
+                            <span class="fw-bold small text-dark">Missed Time Salary Deduction Simulator</span>
+                        </div>
+                        <p class="text-muted small mb-2">
+                            Enter any missed hours below to calculate your exact salary deduction:
+                        </p>
+                        <div class="row g-2 align-items-center">
+                            <div class="col-6 col-sm-4">
+                                <div class="input-group">
+                                    <input type="number" id="testMissedHours" class="form-control" value="1" min="0" max="100" step="0.5">
+                                    <span class="input-group-text">hrs missed</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-sm-8">
+                                <div class="p-2 bg-white border rounded text-dark">
+                                    Deduction: <strong class="text-danger fs-6" id="calcDeductionResult">₹{{ salary_info.per_hour_salary|floatformat:2 }}</strong>
+                                    <span class="text-muted small ms-1" id="calcFormulaBreakdown">(1 hr &times; ₹{{ salary_info.per_hour_salary|floatformat:2 }}/hr)</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -297,10 +327,15 @@
         });
     });
 
-    // 3. Live 1-Day Salary Deduction Calculator
+    // 3. Live 1-Day & Hourly Salary Deduction Calculator + Simulator
     const salaryInput = document.getElementById('id_monthly_salary');
     const displayDailyRate = document.getElementById('displayDailyRate');
     const displayHourlyRate = document.getElementById('displayHourlyRate');
+    const displayMinuteRate = document.getElementById('displayMinuteRate');
+    const testMissedInput = document.getElementById('testMissedHours');
+    const calcResult = document.getElementById('calcDeductionResult');
+    const calcFormula = document.getElementById('calcFormulaBreakdown');
+
     const workingDays = {{ salary_info.working_days|default:23 }};
     const targetHoursInput = document.getElementById('id_target_hours');
     const targetMinsInput = document.getElementById('id_target_minutes');
@@ -312,14 +347,43 @@
         const tm = (targetMinsInput ? parseFloat(targetMinsInput.value) : 15) || 15;
         const totalTargetH = th + (tm / 60);
 
+        let hourly = 0;
         if (workingDays > 0 && salary > 0) {
             const daily = salary / workingDays;
-            const hourly = totalTargetH > 0 ? (daily / totalTargetH) : 0;
+            hourly = totalTargetH > 0 ? (daily / totalTargetH) : 0;
+            const minute = hourly / 60;
             displayDailyRate.textContent = '₹' + daily.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             displayHourlyRate.textContent = '₹' + hourly.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            if (displayMinuteRate) {
+                displayMinuteRate.textContent = '₹' + minute.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            }
         } else {
             displayDailyRate.textContent = '₹0.00';
             displayHourlyRate.textContent = '₹0.00';
+            if (displayMinuteRate) displayMinuteRate.textContent = '₹0.00';
+        }
+
+        // Update Simulator
+        updateSimulator(hourly);
+    }
+
+    function updateSimulator(currentHourly) {
+        if (!testMissedInput || !calcResult) return;
+        let rate = currentHourly;
+        if (rate === undefined || rate === null) {
+            const salary = parseFloat(salaryInput ? salaryInput.value : 0) || 0;
+            const th = (targetHoursInput ? parseFloat(targetHoursInput.value) : 9) || 9;
+            const tm = (targetMinsInput ? parseFloat(targetMinsInput.value) : 15) || 15;
+            const totalTargetH = th + (tm / 60);
+            const daily = workingDays > 0 ? (salary / workingDays) : 0;
+            rate = totalTargetH > 0 ? (daily / totalTargetH) : 0;
+        }
+
+        const missed = parseFloat(testMissedInput.value) || 0;
+        const deduction = missed * rate;
+        calcResult.textContent = '₹' + deduction.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        if (calcFormula) {
+            calcFormula.textContent = `(${missed} hr × ₹${rate.toFixed(2)}/hr)`;
         }
     }
 
@@ -328,5 +392,8 @@
     }
     if (targetHoursInput) targetHoursInput.addEventListener('input', updateSalaryRates);
     if (targetMinsInput) targetMinsInput.addEventListener('input', updateSalaryRates);
+    if (testMissedInput) {
+        testMissedInput.addEventListener('input', function() { updateSimulator(); });
+    }
 </script>
 {% endblock %}

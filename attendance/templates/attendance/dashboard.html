@@ -293,15 +293,18 @@
             <div class="mt-auto">
                 {% if monthly_stats.is_surplus %}
                     <span class="small text-success fw-semibold">
-                        <i class="bi bi-shield-check"></i> Safe from salary deduction!
+                        <i class="bi bi-shield-check"></i> Safe from hourly salary cut!
                     </span>
                 {% else %}
-                    <span class="small text-danger fw-semibold">
-                        <i class="bi bi-exclamation-triangle"></i> Salary Deduction Risk
-                        {% if monthly_stats.total_salary_deduction > 0 %}
-                            <span class="badge bg-danger text-white ms-1">Est: -₹{{ monthly_stats.total_salary_deduction|floatformat:2 }}</span>
-                        {% endif %}
+                    <span class="small text-danger fw-semibold d-block">
+                        <i class="bi bi-exclamation-triangle"></i> Hourly Deduction Risk
                     </span>
+                    {% if monthly_stats.total_salary_deduction > 0 %}
+                        <div class="mt-1 small">
+                            <span class="badge bg-danger text-white">Est. Cut: -₹{{ monthly_stats.total_salary_deduction|floatformat:2 }}</span>
+                            <span class="text-muted d-block" style="font-size: 0.72rem;">({{ monthly_stats.missed_hours_formatted }} &times; ₹{{ monthly_stats.per_hour_salary }}/hr)</span>
+                        </div>
+                    {% endif %}
                 {% endif %}
             </div>
         </div>
@@ -332,13 +335,16 @@
 <div class="alert alert-danger d-flex align-items-center gap-3 p-3 rounded-4 shadow-sm mb-4 border-danger">
     <i class="bi bi-exclamation-octagon-fill fs-2 text-danger"></i>
     <div class="flex-grow-1">
-        <h5 class="alert-heading fw-bold mb-1">Salary Deduction Warning</h5>
+        <h5 class="alert-heading fw-bold mb-1">Hourly Salary Deduction Warning</h5>
         <p class="mb-0 small">
-            Your monthly average is currently <strong>{{ monthly_stats.avg_hours_formatted }}</strong>, which falls short of the required <strong>{{ target_formatted }}</strong> by <strong>{{ monthly_stats.deficit_hours }} hours</strong>.
-            {% if monthly_stats.per_day_salary > 0 %}
-                At your 1-day rate of <strong>₹{{ monthly_stats.per_day_salary|floatformat:2 }}/day</strong>, estimated deduction is <strong>₹{{ monthly_stats.total_salary_deduction|floatformat:2 }}</strong>.
+            Your monthly hours currently fall short of your required target by <strong>{{ monthly_stats.diff_formatted }}</strong> ({{ monthly_stats.missed_hours_formatted }} missed).
+            {% if monthly_stats.per_hour_salary > 0 %}
+                Since your company deducts salary on an hourly basis, <strong>{{ monthly_stats.missed_hours_decimal }} hours missed</strong> at your rate of <strong>₹{{ monthly_stats.per_hour_salary }}/hour</strong> results in an estimated deduction of <strong>₹{{ monthly_stats.salary_deduction_deficit|floatformat:2 }}</strong>.
+                {% if user.profile.monthly_salary > 0 %}
+                    Estimated payable salary: <strong>₹{{ monthly_stats.estimated_payable_salary|floatformat:2 }}</strong>.
+                {% endif %}
             {% endif %}
-            Please log extra hours in upcoming shifts to bring your average back above {{ target_formatted }} and prevent salary deduction.
+            Please log extra hours in upcoming shifts to recover this deficit and protect your salary.
         </p>
     </div>
 </div>

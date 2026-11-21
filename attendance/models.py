@@ -82,18 +82,35 @@ class UserProfile(models.Model):
             per_day = self.monthly_salary / Decimal(working_days)
             target_hours = Decimal(self.daily_target_minutes) / Decimal(60)
             per_hour = per_day / target_hours if target_hours > 0 else Decimal('0.00')
+            per_minute = per_hour / Decimal(60) if per_hour > 0 else Decimal('0.00')
         else:
             per_day = Decimal('0.00')
             per_hour = Decimal('0.00')
+            per_minute = Decimal('0.00')
+            target_hours = Decimal(self.daily_target_minutes) / Decimal(60)
 
         return {
             'monthly_salary': self.monthly_salary,
             'working_days': working_days,
+            'target_hours_decimal': round(target_hours, 2),
             'per_day_salary': round(per_day, 2),
             'per_hour_salary': round(per_hour, 2),
+            'per_minute_salary': round(per_minute, 2),
             'year': year,
             'month': month,
         }
+
+    def calculate_deduction_for_minutes(self, missed_minutes, year=None, month=None):
+        """
+        Calculates exact salary deduction for given missed minutes (or hours).
+        Deduction = (missed_minutes / 60) * hourly_salary_rate
+        """
+        if missed_minutes <= 0 or self.monthly_salary <= Decimal('0.00'):
+            return Decimal('0.00')
+        info = self.get_salary_deduction_info(year, month)
+        per_hour = info['per_hour_salary']
+        deduction = (Decimal(missed_minutes) / Decimal(60)) * per_hour
+        return round(deduction, 2)
 
 
 @receiver(post_save, sender=User)
@@ -214,6 +231,21 @@ class AttendanceRecord(models.Model):
         login_dt = datetime.combine(self.date, self.login_time)
         required_logout_dt = login_dt + timedelta(minutes=target_mins)
         return required_logout_dt.time()
+
+    @property
+    def salary_impact(self):
+        """If this record has a deficit, returns estimated salary deduction for the missed time."""
+        if self.diff_minutes is not None and self.diff_minutes < 0:
+            if hasattr(self.user, 'profile'):
+                return self.user.profile.calculate_deduction_for_minutes(-self.diff_minutes, self.date.year, self.date.month)
+        return Decimal('0.00')
+
+    @property
+    def salary_impact_formatted(self):
+        val = self.salary_impact
+        if val > Decimal('0.00'):
+            return f"-₹{val:.2f}"
+        return ""
 
 
 class LeaveRecord(models.Model):
