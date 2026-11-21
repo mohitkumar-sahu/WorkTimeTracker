@@ -1,25 +1,78 @@
 {% extends 'attendance/base.html' %}
 
-{% block title %}Role & Work Time Settings - WorkTime Tracker{% endblock %}
+{% block title %}Settings & Account - WorkTime Tracker{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
-        <div class="card shadow-sm p-4">
-            <div class="d-flex align-items-center gap-3 mb-3">
-                <div class="stat-icon bg-primary bg-opacity-10 text-primary">
-                    <i class="bi bi-briefcase"></i>
+    <div class="col-12 col-md-10 col-lg-8">
+        
+        <!-- PAGE TITLE -->
+        <div class="d-flex align-items-center gap-3 mb-4">
+            <div class="stat-icon bg-primary bg-opacity-10 text-primary">
+                <i class="bi bi-gear-wide-connected fs-4"></i>
+            </div>
+            <div>
+                <h3 class="fw-bold mb-0">Role & Work Time Settings</h3>
+                <small class="text-muted">Manage your user ID, username, password reset, and role working hours.</small>
+            </div>
+        </div>
+
+        <!-- 1. USER ACCOUNT INFO CARD -->
+        <div class="card shadow-sm p-3 p-md-4 mb-4 border-0">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 pb-3 border-bottom mb-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon bg-light text-primary border rounded-circle" style="width: 52px; height: 52px;">
+                        <i class="bi bi-person-badge fs-3"></i>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <h5 class="fw-bold mb-0 text-dark">{{ user_obj.username }}</h5>
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">
+                                User ID: #{{ user_obj.id }}
+                            </span>
+                        </div>
+                        <small class="text-muted">Registered Member &bull; Role: <strong>{{ profile.display_role }}</strong></small>
+                    </div>
                 </div>
-                <div>
-                    <h4 class="fw-bold mb-0">Role & Work Time Settings</h4>
-                    <small class="text-muted">Set your role and required daily working hours.</small>
+                <div class="text-md-end">
+                    <span class="badge bg-primary fs-6 px-3 py-2 rounded-pill shadow-sm">
+                        <i class="bi bi-clock me-1"></i> Target: {{ profile.daily_target_formatted }}
+                    </span>
                 </div>
             </div>
 
-            <hr class="my-3">
+            <!-- USERNAME UPDATE -->
+            <form method="post" class="row g-3 align-items-end">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="update_username">
+
+                <div class="col-12 col-sm-4">
+                    <label class="form-label small fw-semibold text-muted text-uppercase">User ID (Permanent)</label>
+                    <input type="text" class="form-control bg-light" value="#{{ user_obj.id }}" readonly>
+                </div>
+                <div class="col-12 col-sm-5">
+                    <label class="form-label small fw-semibold text-muted text-uppercase">Username</label>
+                    <input type="text" name="username" class="form-control" value="{{ user_obj.username }}" required>
+                </div>
+                <div class="col-12 col-sm-3">
+                    <button type="submit" class="btn btn-outline-primary w-100 py-2">
+                        <i class="bi bi-check2 me-1"></i> Update Username
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 2. ROLE & DAILY WORKING HOURS CARD -->
+        <div class="card shadow-sm p-3 p-md-4 mb-4 border-0">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-briefcase text-primary fs-5"></i>
+                <h5 class="fw-bold mb-0">Role & Daily Working Hours</h5>
+            </div>
+            <p class="text-muted small mb-4">Set your designation and required daily hours (all daily surplus and deficit stats will use this target).</p>
 
             <form method="post" id="settingsForm">
                 {% csrf_token %}
+                <input type="hidden" name="action" value="update_profile">
 
                 {% if form.non_field_errors %}
                     <div class="alert alert-danger p-2 small">
@@ -28,24 +81,6 @@
                         {% endfor %}
                     </div>
                 {% endif %}
-
-                <!-- CURRENT PROFILE STATUS -->
-                <div class="p-3 bg-light rounded-3 mb-4 border">
-                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                        <div>
-                            <span class="text-muted small text-uppercase fw-semibold d-block">Current Role</span>
-                            <span class="fw-bold fs-5 text-dark">
-                                <i class="bi bi-person-badge text-primary me-1"></i> {{ profile.display_role }}
-                            </span>
-                        </div>
-                        <div class="text-end">
-                            <span class="text-muted small text-uppercase fw-semibold d-block">Daily Requirement</span>
-                            <span class="badge bg-primary fs-6 px-3 py-2 rounded-pill">
-                                <i class="bi bi-clock me-1"></i> {{ profile.daily_target_formatted }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- ROLE SELECTION DROPDOWN -->
                 <div class="mb-3">
@@ -73,7 +108,7 @@
                     <label class="form-label fw-bold text-dark mb-2">
                         <i class="bi bi-hourglass-split text-primary me-1"></i> Set Your Daily Working Hours
                     </label>
-                    <div class="row g-3">
+                    <div class="row g-2 g-sm-3">
                         <div class="col-6">
                             <label class="form-label small fw-semibold">{{ form.target_hours.label }}</label>
                             <div class="input-group">
@@ -98,32 +133,127 @@
                     <small class="text-muted d-block mt-2">Enter the exact hours and minutes you are required to maintain daily.</small>
                 </div>
 
-                <div class="d-flex justify-content-end gap-2 pt-2 border-top">
-                    <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary px-4">Cancel</a>
-                    <button type="submit" class="btn btn-primary-custom px-4">
-                        <i class="bi bi-check-lg me-1"></i> Save Settings
+                <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 pt-2 border-top">
+                    <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary px-4 py-2">Cancel</a>
+                    <button type="submit" class="btn btn-primary-custom px-4 py-2">
+                        <i class="bi bi-check-lg me-1"></i> Save Work Time Settings
                     </button>
                 </div>
             </form>
         </div>
+
+        <!-- 3. RESET / CHANGE PASSWORD CARD -->
+        <div class="card shadow-sm p-3 p-md-4 mb-4 border-0">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-shield-lock text-danger fs-5"></i>
+                <h5 class="fw-bold mb-0">Reset Password</h5>
+            </div>
+            <p class="text-muted small mb-4">Change or reset your password to keep your account secure.</p>
+
+            <form method="post" novalidate>
+                {% csrf_token %}
+                <input type="hidden" name="action" value="change_password">
+
+                {% if password_form.non_field_errors %}
+                    <div class="alert alert-danger p-2 small">
+                        {% for err in password_form.non_field_errors %}
+                            <div>{{ err }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Current Password</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light text-muted"><i class="bi bi-lock"></i></span>
+                        <input type="password" name="old_password" id="oldPasswordInput" class="form-control" placeholder="Enter your current password" required>
+                        <button type="button" class="btn btn-outline-secondary toggle-pwd-btn" data-target="oldPasswordInput" tabindex="-1">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                    {% if password_form.old_password.errors %}
+                        <div class="text-danger small mt-1">{{ password_form.old_password.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="row g-2 g-sm-3 mb-3">
+                    <div class="col-12 col-sm-6">
+                        <label class="form-label fw-semibold">New Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-muted"><i class="bi bi-key"></i></span>
+                            <input type="password" name="new_password1" id="newPassword1Input" class="form-control" placeholder="New password" required>
+                            <button type="button" class="btn btn-outline-secondary toggle-pwd-btn" data-target="newPassword1Input" tabindex="-1">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        {% if password_form.new_password1.errors %}
+                            <div class="text-danger small mt-1">{{ password_form.new_password1.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-12 col-sm-6">
+                        <label class="form-label fw-semibold">Confirm New Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-muted"><i class="bi bi-key-fill"></i></span>
+                            <input type="password" name="new_password2" id="newPassword2Input" class="form-control" placeholder="Confirm new password" required>
+                            <button type="button" class="btn btn-outline-secondary toggle-pwd-btn" data-target="newPassword2Input" tabindex="-1">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        {% if password_form.new_password2.errors %}
+                            <div class="text-danger small mt-1">{{ password_form.new_password2.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end pt-2 border-top">
+                    <button type="submit" class="btn btn-danger px-4 py-2 fw-semibold w-100 w-sm-auto">
+                        <i class="bi bi-shield-check me-1"></i> Update & Reset Password
+                    </button>
+                </div>
+            </form>
+        </div>
+
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+    // 1. Custom Role title toggle
     const roleSelect = document.getElementById('id_role');
     const customTitleGroup = document.getElementById('customRoleTitleGroup');
 
     function updateCustomTitleVisibility() {
-        if (roleSelect.value === 'CUSTOM') {
-            customTitleGroup.style.display = 'block';
-        } else {
-            customTitleGroup.style.display = 'none';
+        if (roleSelect && customTitleGroup) {
+            if (roleSelect.value === 'CUSTOM') {
+                customTitleGroup.style.display = 'block';
+            } else {
+                customTitleGroup.style.display = 'none';
+            }
         }
     }
 
-    roleSelect.addEventListener('change', updateCustomTitleVisibility);
-    updateCustomTitleVisibility();
+    if (roleSelect) {
+        roleSelect.addEventListener('change', updateCustomTitleVisibility);
+        updateCustomTitleVisibility();
+    }
+
+    // 2. Password Show / Hide toggles
+    document.querySelectorAll('.toggle-pwd-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            const input = document.getElementById(targetId);
+            const icon = this.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('bi-eye');
+                icon.classList.add('bi-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('bi-eye-slash');
+                icon.classList.add('bi-eye');
+            }
+        });
+    });
 </script>
 {% endblock %}

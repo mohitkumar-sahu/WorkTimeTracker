@@ -4,8 +4,9 @@ import calendar
 from datetime import datetime, date
 from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import login, logout, authenticate
-from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth import login, logout, authenticate, update_session_auth_hash
+from django.contrib.auth.models import User
+from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
@@ -472,16 +473,50 @@ def leave_delete(request, pk):
 @login_required
 def profile_settings(request):
     profile = request.user.profile
-    if request.method == 'POST':
-        form = UserProfileForm(request.POST, instance=profile)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Target work hours and settings updated successfully!")
-            return redirect('profile_settings')
-    else:
-        form = UserProfileForm(instance=profile)
+    password_form = PasswordChangeForm(user=request.user)
+    form = UserProfileForm(instance=profile)
 
-    return render(request, 'attendance/profile.html', {'form': form, 'profile': profile})
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'change_password':
+            password_form = PasswordChangeForm(user=request.user, data=request.POST)
+            if password_form.is_valid():
+                user = password_form.save()
+                update_session_auth_hash(request, user)  # Keep user logged in
+                messages.success(request, "🔒 Password reset/changed successfully!")
+                return redirect('profile_settings')
+            else:
+                messages.error(request, "Please fix the password errors below.")
+        elif action == 'update_username':
+            new_username = request.POST.get('username', '').strip()
+            if not new_username:
+                messages.error(request, "Username cannot be empty.")
+            elif new_username != request.user.username:
+                if User.objects.filter(username=new_username).exclude(pk=request.user.pk).exists():
+                    messages.error(request, f"Username '{new_username}' is already taken.")
+                else:
+                    request.user.username = new_username
+                    request.user.save()
+                    messages.success(request, f"Username updated to '{new_username}'!")
+                    return redirect('profile_settings')
+            else:
+                messages.info(request, "Username is unchanged.")
+                return redirect('profile_settings')
+        else:
+            form = UserProfileForm(request.POST, instance=profile)
+            if form.is_valid():
+                form.save()
+                messages.success(request, "✅ Role & target work hours updated successfully!")
+                return redirect('profile_settings')
+
+    context = {
+        'form': form,
+        'password_form': password_form,
+        'profile': profile,
+        'user_obj': request.user,
+    }
+    return render(request, 'attendance/profile.html', context)
 
 
 def register_view(request):

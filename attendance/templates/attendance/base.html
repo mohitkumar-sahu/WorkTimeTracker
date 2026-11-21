@@ -137,6 +137,70 @@
             color: #64748b;
             font-size: 0.875rem;
         }
+
+        /* Mobile & Tablet Responsive Enhancements */
+        @media (max-width: 991.98px) {
+            .navbar-collapse {
+                background: #ffffff;
+                padding: 1rem;
+                margin-top: 0.75rem;
+                border-radius: 14px;
+                border: 1px solid #e2e8f0;
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+            }
+            .nav-link {
+                padding: 0.75rem 1rem;
+            }
+            .mobile-user-section {
+                flex-direction: column;
+                align-items: stretch !important;
+                width: 100%;
+                gap: 0.5rem !important;
+            }
+            .mobile-user-section .badge {
+                width: 100%;
+                text-align: center;
+                padding: 0.6rem !important;
+            }
+            .mobile-user-section .dropdown, .mobile-user-section .dropdown-toggle {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 575.98px) {
+            .container {
+                padding-left: 0.875rem;
+                padding-right: 0.875rem;
+            }
+            .card-body {
+                padding: 1.25rem !important;
+            }
+            .hero-action-buttons, .hero-action-buttons .btn, .hero-action-buttons form {
+                width: 100% !important;
+            }
+            .hero-action-buttons .btn {
+                padding: 0.875rem 1rem !important;
+                font-size: 1rem !important;
+            }
+            .stat-icon {
+                width: 42px;
+                height: 42px;
+                font-size: 1.25rem;
+            }
+            .fs-1 {
+                font-size: 1.75rem !important;
+            }
+            .fs-2 {
+                font-size: 1.5rem !important;
+            }
+            .table-responsive {
+                -webkit-overflow-scrolling: touch;
+            }
+            .table th, .table td {
+                padding: 0.65rem 0.6rem;
+                font-size: 0.85rem;
+            }
+        }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
@@ -174,13 +238,13 @@
                     </li>
                 </ul>
 
-                <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-light text-dark border px-3 py-2 rounded-pill me-2">
+                <div class="d-flex align-items-center gap-2 mobile-user-section mt-3 mt-lg-0 pt-2 pt-lg-0 border-top border-lg-0">
+                    <span class="badge bg-light text-dark border px-3 py-2 rounded-pill me-lg-2">
                         <i class="bi bi-person-badge text-primary me-1"></i> <span class="text-muted">{{ user.profile.display_role }}:</span> <strong>{{ user.profile.daily_target_formatted }}</strong>
                     </span>
 
                     <div class="dropdown">
-                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle rounded-pill px-3 py-2" type="button" data-bs-toggle="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle rounded-pill px-3 py-2 w-100" type="button" data-bs-toggle="dropdown">
                             <i class="bi bi-person-circle me-1"></i> {{ user.username }}
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">

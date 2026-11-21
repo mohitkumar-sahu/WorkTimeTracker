@@ -270,3 +270,35 @@ class AttendanceCalculationTests(TestCase):
         self.assertEqual(month_numbers, [11])  # Only November!
         self.assertNotIn(12, month_numbers)    # No December
         self.assertNotIn(10, month_numbers)    # No October
+
+    def test_profile_settings_user_id_username_and_password_reset(self):
+        self.client.login(username='testuser', password='password123')
+        
+        # 1. Check User ID & Username are rendered
+        res = self.client.get('/settings/')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, f"User ID: #{self.user.id}")
+        self.assertContains(res, "Reset Password")
+        self.assertContains(res, self.user.username)
+
+        # 2. Update Username
+        res = self.client.post('/settings/', {
+            'action': 'update_username',
+            'username': 'updated_worker',
+        })
+        self.assertEqual(res.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, 'updated_worker')
+
+        # 3. Change / Reset Password
+        res = self.client.post('/settings/', {
+            'action': 'change_password',
+            'old_password': 'password123',
+            'new_password1': 'NewSecretPass123!',
+            'new_password2': 'NewSecretPass123!',
+        })
+        self.assertEqual(res.status_code, 302)
+        # Verify new password authenticates
+        self.client.logout()
+        login_success = self.client.login(username='updated_worker', password='NewSecretPass123!')
+        self.assertTrue(login_success)

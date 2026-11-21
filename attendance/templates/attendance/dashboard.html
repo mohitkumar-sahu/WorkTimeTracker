@@ -104,7 +104,7 @@
             </div>
 
             <!-- ACTION BUTTONS -->
-            <div class="col-lg-5 text-lg-end">
+            <div class="col-lg-5 text-lg-end hero-action-buttons">
                 {% if not today_leave %}
                     {% if not today_record %}
                         <div class="d-flex flex-column flex-sm-row justify-content-lg-end gap-2">
@@ -152,7 +152,7 @@
     </div>
 </div>
 
-<!-- COMPANY DECIDED SATURDAY OFFS & LEAVES (HOME PAGE CARD) -->
+<!-- SATURDAY OFFS & COMPANY LEAVES (HOME PAGE CARD) -->
 <div class="card mb-4 p-3 border-0 shadow-sm" style="background: #ffffff; border-left: 5px solid #4f46e5 !important;">
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
         <div>
@@ -174,7 +174,7 @@
     <!-- SATURDAYS ROW -->
     <div class="row g-2">
         {% for sat in month_saturdays %}
-            <div class="col-sm-6 col-lg-3">
+            <div class="col-12 col-sm-6 col-lg-3">
                 <div class="p-3 rounded-3 border h-100 {% if sat.is_off %}bg-success bg-opacity-10 border-success border-opacity-50{% elif sat.is_today %}bg-warning bg-opacity-10 border-warning{% else %}bg-light{% endif %}">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div>
@@ -215,7 +215,7 @@
 <!-- KEY METRICS ROW (WEEKLY AVG, MONTHLY AVG, NET DEFICIT/SURPLUS, LEAVES) -->
 <div class="row g-3 mb-4">
     <!-- Weekly Average Card -->
-    <div class="col-md-6 col-xl-3">
+    <div class="col-12 col-sm-6 col-xl-3">
         <div class="card h-100 p-3">
             <div class="d-flex justify-content-between align-items-start mb-2">
                 <span class="text-muted fw-semibold small text-uppercase">Weekly Average</span>
@@ -244,7 +244,7 @@
     </div>
 
     <!-- Monthly Average Card -->
-    <div class="col-md-6 col-xl-3">
+    <div class="col-12 col-sm-6 col-xl-3">
         <div class="card h-100 p-3">
             <div class="d-flex justify-content-between align-items-start mb-2">
                 <span class="text-muted fw-semibold small text-uppercase">Monthly Average ({{ monthly_stats.month_name }})</span>
@@ -273,7 +273,7 @@
     </div>
 
     <!-- Net Month Surplus / Deficit Card -->
-    <div class="col-md-6 col-xl-3">
+    <div class="col-12 col-sm-6 col-xl-3">
         <div class="card h-100 p-3">
             <div class="d-flex justify-content-between align-items-start mb-2">
                 <span class="text-muted fw-semibold small text-uppercase">Monthly Balance</span>
@@ -305,7 +305,7 @@
     </div>
 
     <!-- Leaves Taken Card -->
-    <div class="col-md-6 col-xl-3">
+    <div class="col-12 col-sm-6 col-xl-3">
         <div class="card h-100 p-3">
             <div class="d-flex justify-content-between align-items-start mb-2">
                 <span class="text-muted fw-semibold small text-uppercase">Leaves Taken</span>
