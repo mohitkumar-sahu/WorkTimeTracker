@@ -382,14 +382,17 @@ def get_leave_statistics(user, year=None):
     }
 
 
-def get_chart_data_for_month(user, year, month):
+def get_chart_data_for_month(user, year, month, records=None):
     """Provides structured data for Chart.js to render daily hours against target."""
-    records = AttendanceRecord.objects.filter(
-        user=user,
-        date__year=year,
-        date__month=month,
-        logout_time__isnull=False
-    ).order_by('date')
+    if records is None:
+        records = AttendanceRecord.objects.filter(
+            user=user,
+            date__year=year,
+            date__month=month,
+            logout_time__isnull=False
+        ).select_related('user__profile').order_by('date')
+    else:
+        records = [r for r in records if r.logout_time is not None]
 
     target_decimal = round(user.profile.daily_target_minutes / 60.0, 2)
 
@@ -476,7 +479,7 @@ def get_remaining_working_days_in_month(user, from_date=None, policy=None):
     return count
 
 
-def calculate_flexi_recovery_plan(user, target_date=None):
+def calculate_flexi_recovery_plan(user, target_date=None, today_record=None, monthly_summary=None):
     """
     Computes actionable compensatory work time plan for startups with flexible hours:
     - If user leaves early today (diff_minutes < 0), calculates tomorrow's extended target shift.
@@ -490,8 +493,12 @@ def calculate_flexi_recovery_plan(user, target_date=None):
     daily_target_minutes = user.profile.daily_target_minutes
     daily_target_formatted = user.profile.daily_target_formatted
 
-    today_record = AttendanceRecord.objects.filter(user=user, date=target_date).first()
-    monthly_summary = calculate_monthly_summary(user, target_date.year, target_date.month)
+    if today_record is None:
+        today_record = AttendanceRecord.objects.filter(user=user, date=target_date).first()
+
+    if monthly_summary is None:
+        monthly_summary = calculate_monthly_summary(user, target_date.year, target_date.month)
+
     next_working_day = get_next_working_day(user, target_date)
     remaining_working_days = get_remaining_working_days_in_month(user, target_date)
 
@@ -530,13 +537,16 @@ def calculate_flexi_recovery_plan(user, target_date=None):
             standard_logout_time = today_record.expected_logout_time
 
     # Prior deficit / surplus in current month before target_date
-    prior_records = AttendanceRecord.objects.filter(
-        user=user,
-        date__year=target_date.year,
-        date__month=target_date.month,
-        date__lt=target_date,
-        logout_time__isnull=False
-    )
+    if 'records' in monthly_summary:
+        prior_records = [r for r in monthly_summary['records'] if r.date < target_date and r.logout_time is not None]
+    else:
+        prior_records = AttendanceRecord.objects.filter(
+            user=user,
+            date__year=target_date.year,
+            date__month=target_date.month,
+            date__lt=target_date,
+            logout_time__isnull=False
+        )
     prior_days_worked = len(prior_records)
     prior_worked_minutes = sum(r.get_worked_minutes() for r in prior_records)
     prior_target_minutes = prior_days_worked * daily_target_minutes

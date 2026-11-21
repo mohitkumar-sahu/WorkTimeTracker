@@ -80,7 +80,7 @@ def dashboard(request):
     weekly_stats = calculate_weekly_summary(request.user, today)
     monthly_stats = calculate_monthly_summary(request.user, today.year, today.month)
     leave_stats = get_leave_statistics(request.user, today.year)
-    chart_data = get_chart_data_for_month(request.user, today.year, today.month)
+    chart_data = get_chart_data_for_month(request.user, today.year, today.month, records=monthly_stats.get('records'))
 
     # All Saturdays in current month with their status
     month_saturdays = get_month_saturdays_status(request.user, today.year, today.month)
@@ -93,7 +93,7 @@ def dashboard(request):
     target_formatted = request.user.profile.daily_target_formatted
 
     # Flexi-hours recovery plan
-    flexi_plan = calculate_flexi_recovery_plan(request.user, today)
+    flexi_plan = calculate_flexi_recovery_plan(request.user, today, today_record=today_record, monthly_summary=monthly_stats)
 
     context = {
         'today': today,
