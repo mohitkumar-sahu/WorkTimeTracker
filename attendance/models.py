@@ -8,7 +8,26 @@ from decimal import Decimal
 
 
 class UserProfile(models.Model):
+    ROLE_CHOICES = [
+        ('DEVELOPER', 'Developer / Software Engineer'),
+        ('TESTER', 'QA / Tester'),
+        ('HR', 'HR / Human Resources'),
+        ('DESIGNER', 'UI/UX Designer'),
+        ('MANAGER', 'Project Manager'),
+        ('CUSTOM', 'Custom Role'),
+    ]
+
+    ROLE_PRESETS = {
+        'DEVELOPER': {'hours': 9, 'minutes': 15},
+        'TESTER': {'hours': 9, 'minutes': 0},
+        'HR': {'hours': 8, 'minutes': 30},
+        'DESIGNER': {'hours': 9, 'minutes': 0},
+        'MANAGER': {'hours': 9, 'minutes': 0},
+    }
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    role = models.CharField(max_length=30, choices=ROLE_CHOICES, default='DEVELOPER', help_text="Your job role/department")
+    custom_role_title = models.CharField(max_length=50, blank=True, help_text="Optional custom role name")
     target_hours = models.PositiveIntegerField(default=9, help_text="Daily required working hours")
     target_minutes = models.PositiveIntegerField(default=15, help_text="Daily required working minutes")
     hourly_salary_rate = models.DecimalField(
@@ -19,7 +38,13 @@ class UserProfile(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.username}'s Profile ({self.daily_target_formatted})"
+        return f"{self.user.username} ({self.display_role} - {self.daily_target_formatted})"
+
+    @property
+    def display_role(self):
+        if self.role == 'CUSTOM' and self.custom_role_title:
+            return self.custom_role_title
+        return self.get_role_display()
 
     @property
     def daily_target_minutes(self):

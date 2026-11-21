@@ -7,7 +7,7 @@
     <div>
         <h2 class="fw-bold mb-1">Attendance & Hours Dashboard</h2>
         <p class="text-muted mb-0">
-            <i class="bi bi-calendar-event me-1"></i> Today is <strong>{{ today|date:"l, F d, Y" }}</strong> &bull; Daily Required: <span class="badge bg-primary">{{ target_formatted }}</span>
+            <i class="bi bi-calendar-event me-1"></i> Today is <strong>{{ today|date:"l, F d, Y" }}</strong> &bull; Role: <span class="badge bg-secondary">{{ user.profile.display_role }}</span> &bull; Daily Required: <span class="badge bg-primary">{{ target_formatted }}</span>
         </p>
     </div>
     <div class="d-flex gap-2">

@@ -137,6 +137,41 @@ class AttendanceCalculationTests(TestCase):
         self.assertEqual(leave_stats['breakdown']['CASUAL']['count'], 1.0)
         self.assertEqual(leave_stats['breakdown']['HALF_DAY']['count'], 0.5)
 
+    def test_role_and_work_hours_customization(self):
+        # 1. Default should be Developer (9h 15m)
+        self.assertEqual(self.user.profile.role, 'DEVELOPER')
+        self.assertEqual(self.user.profile.daily_target_formatted, '9h 15m')
+        self.assertEqual(self.user.profile.display_role, 'Developer / Software Engineer')
+
+        # 2. Update to Tester (9h 00m)
+        profile = self.user.profile
+        profile.role = 'TESTER'
+        profile.target_hours = 9
+        profile.target_minutes = 0
+        profile.save()
+        self.assertEqual(profile.display_role, 'QA / Tester')
+        self.assertEqual(profile.daily_target_minutes, 540)
+        self.assertEqual(profile.daily_target_formatted, '9h 0m')
+
+        # 3. Update to HR (8h 30m)
+        profile.role = 'HR'
+        profile.target_hours = 8
+        profile.target_minutes = 30
+        profile.save()
+        self.assertEqual(profile.display_role, 'HR / Human Resources')
+        self.assertEqual(profile.daily_target_minutes, 510)
+        self.assertEqual(profile.daily_target_formatted, '8h 30m')
+
+        # 4. Update to Custom Role (e.g. DevOps Engineer - 8h 45m)
+        profile.role = 'CUSTOM'
+        profile.custom_role_title = 'DevOps Engineer'
+        profile.target_hours = 8
+        profile.target_minutes = 45
+        profile.save()
+        self.assertEqual(profile.display_role, 'DevOps Engineer')
+        self.assertEqual(profile.daily_target_minutes, 525)
+        self.assertEqual(profile.daily_target_formatted, '8h 45m')
+
     def test_web_views_render_successfully(self):
         self.client.login(username='testuser', password='password123')
 
@@ -164,4 +199,4 @@ class AttendanceCalculationTests(TestCase):
         # 5. Profile Settings
         res = self.client.get('/settings/')
         self.assertEqual(res.status_code, 200)
-        self.assertContains(res, "Attendance Settings & Targets")
+        self.assertContains(res, "Role & Work Time Settings")

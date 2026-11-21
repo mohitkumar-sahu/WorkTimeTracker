@@ -79,20 +79,25 @@ class LeaveForm(forms.ModelForm):
 class UserProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
-        fields = ['target_hours', 'target_minutes', 'hourly_salary_rate']
+        fields = ['role', 'custom_role_title', 'target_hours', 'target_minutes', 'hourly_salary_rate']
         widgets = {
-            'target_hours': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 24}),
-            'target_minutes': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 59}),
+            'role': forms.Select(attrs={'class': 'form-select', 'id': 'id_role'}),
+            'custom_role_title': forms.TextInput(attrs={'class': 'form-control', 'id': 'id_custom_role_title', 'placeholder': 'e.g. DevOps Engineer'}),
+            'target_hours': forms.NumberInput(attrs={'class': 'form-control', 'id': 'id_target_hours', 'min': 1, 'max': 24}),
+            'target_minutes': forms.NumberInput(attrs={'class': 'form-control', 'id': 'id_target_minutes', 'min': 0, 'max': 59}),
             'hourly_salary_rate': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'step': '0.01', 'placeholder': 'e.g. 500.00'}),
         }
         labels = {
+            'role': 'Job Role / Designation',
+            'custom_role_title': 'Custom Role Title',
             'target_hours': 'Daily Target Hours',
             'target_minutes': 'Daily Target Minutes',
             'hourly_salary_rate': 'Hourly Salary Rate (₹ / $)',
         }
         help_texts = {
-            'target_hours': 'Currently set to 9 hours.',
-            'target_minutes': 'Currently set to 15 minutes (Total daily target: 9h 15m).',
+            'role': 'Selecting a role will automatically suggest preset daily working hours.',
+            'target_hours': 'Working hours required per day.',
+            'target_minutes': 'Minutes required per day.',
             'hourly_salary_rate': 'Used to calculate salary deduction estimates when hours fall short.',
         }
 
