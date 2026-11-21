@@ -55,15 +55,6 @@
                     </div>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Break Duration (Minutes)</label>
-                    {{ form.break_minutes }}
-                    <small class="text-muted">Lunch / tea / personal breaks (deducted from gross duration).</small>
-                    {% if form.break_minutes.errors %}
-                        <div class="text-danger small mt-1">{{ form.break_minutes.errors.0 }}</div>
-                    {% endif %}
-                </div>
-
                 <div class="mb-4">
                     <label class="form-label fw-semibold">Notes (Optional)</label>
                     {{ form.notes }}

@@ -345,7 +345,7 @@ def export_attendance_csv(request):
 
     writer = csv.writer(response)
     writer.writerow([
-        'Date', 'Day', 'Login Time', 'Logout Time', 'Break (Mins)',
+        'Date', 'Day', 'Login Time', 'Logout Time',
         'Worked Hours', 'Target Hours', 'Surplus / Deficit', 'Status', 'Notes'
     ])
 
@@ -357,7 +357,6 @@ def export_attendance_csv(request):
             r.date.strftime('%A'),
             login_s,
             logout_s,
-            r.break_minutes,
             r.worked_hours_formatted,
             request.user.profile.daily_target_formatted,
             r.diff_formatted,

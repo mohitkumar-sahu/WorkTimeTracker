@@ -88,10 +88,6 @@
                             <div class="fw-bold fs-5">{{ today_record.logout_time|time:"h:i A" }}</div>
                         </div>
                         <div>
-                            <div class="text-light opacity-75 small">Break</div>
-                            <div class="fw-bold fs-5">{{ today_record.break_minutes }}m</div>
-                        </div>
-                        <div>
                             <div class="text-light opacity-75 small">Total Worked</div>
                             <div class="fw-bold fs-5 text-info">{{ today_record.worked_hours_formatted }}</div>
                         </div>
@@ -161,9 +157,9 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
         <div>
             <h5 class="fw-bold mb-0 text-dark">
-                <i class="bi bi-building text-primary me-2"></i>Company Decided Saturday Offs & Leaves ({{ monthly_stats.month_name }})
+                <i class="bi bi-calendar2-check text-primary me-2"></i>Saturday Offs & Company Leaves ({{ monthly_stats.month_name }})
             </h5>
-            <small class="text-muted">Since company Saturday leaves are flexible, mark any Saturday or company holiday off directly from here.</small>
+            <small class="text-muted">Mark any Saturday or company-declared leave with a single click.</small>
         </div>
         <div class="d-flex align-items-center gap-2">
             <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill border border-primary border-opacity-25">

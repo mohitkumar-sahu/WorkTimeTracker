@@ -8,12 +8,11 @@ from .models import AttendanceRecord, LeaveRecord, UserProfile
 class AttendanceForm(forms.ModelForm):
     class Meta:
         model = AttendanceRecord
-        fields = ['date', 'login_time', 'logout_time', 'break_minutes', 'notes']
+        fields = ['date', 'login_time', 'logout_time', 'notes']
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'login_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
             'logout_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
-            'break_minutes': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'step': 5}),
             'notes': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Worked late for project release'}),
         }
 
@@ -22,8 +21,6 @@ class AttendanceForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if not self.instance.pk and not self.initial.get('date'):
             self.initial['date'] = timezone.localdate()
-        if not self.instance.pk and not self.initial.get('break_minutes'):
-            self.initial['break_minutes'] = 0
 
     def clean(self):
         cleaned_data = super().clean()
@@ -79,26 +76,23 @@ class LeaveForm(forms.ModelForm):
 class UserProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
-        fields = ['role', 'custom_role_title', 'target_hours', 'target_minutes', 'saturday_off_policy']
+        fields = ['role', 'custom_role_title', 'target_hours', 'target_minutes']
         widgets = {
             'role': forms.Select(attrs={'class': 'form-select', 'id': 'id_role'}),
             'custom_role_title': forms.TextInput(attrs={'class': 'form-control', 'id': 'id_custom_role_title', 'placeholder': 'e.g. DevOps Engineer'}),
             'target_hours': forms.NumberInput(attrs={'class': 'form-control', 'id': 'id_target_hours', 'min': 1, 'max': 24}),
             'target_minutes': forms.NumberInput(attrs={'class': 'form-control', 'id': 'id_target_minutes', 'min': 0, 'max': 59}),
-            'saturday_off_policy': forms.Select(attrs={'class': 'form-select', 'id': 'id_saturday_off_policy'}),
         }
         labels = {
             'role': 'Job Role',
             'custom_role_title': 'Custom Role Title',
             'target_hours': 'Daily Target Hours',
             'target_minutes': 'Daily Target Minutes',
-            'saturday_off_policy': 'Saturday Off Policy',
         }
         help_texts = {
             'role': 'Select your role (e.g. Developer, Tester, HR).',
             'target_hours': 'Working hours required per day.',
             'target_minutes': 'Working minutes required per day.',
-            'saturday_off_policy': 'All Sundays are fixed off. Choose which 2 Saturdays are off per month.',
         }
 
 

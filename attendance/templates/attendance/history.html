@@ -70,34 +70,14 @@
 
 <!-- ATTENDANCE TABLE -->
 <div class="card overflow-hidden">
-    <!-- STARTUP SCHEDULE INFO BAR -->
-    <div class="d-flex flex-wrap align-items-center justify-content-between p-3 bg-light border-bottom gap-2">
-        <div class="small">
-            <i class="bi bi-building text-primary me-1"></i>
-            <strong>Startup Company Schedule:</strong> All Sundays Off &bull; 2 Saturdays Off ({{ user.profile.get_saturday_off_policy_display }})
-        </div>
-        <div class="d-flex flex-wrap gap-2 small">
-            <span class="badge bg-white text-dark border px-2 py-1">
-                Expected Working Days: <strong>{{ monthly_stats.schedule_summary.expected_working_days }} days</strong>
-            </span>
-            <span class="badge bg-secondary text-white px-2 py-1">
-                Sundays Off: <strong>{{ monthly_stats.schedule_summary.sundays_count }}</strong>
-            </span>
-            <span class="badge bg-info bg-opacity-25 text-info-emphasis border border-info px-2 py-1">
-                Saturdays Off: <strong>{{ monthly_stats.schedule_summary.off_saturdays_count }}</strong>
-            </span>
-        </div>
-    </div>
-
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
                     <th class="ps-4">Date</th>
-                    <th>Day & Schedule</th>
+                    <th>Day</th>
                     <th>Punch In</th>
                     <th>Punch Out</th>
-                    <th>Break</th>
                     <th>Total Worked</th>
                     <th>Target</th>
                     <th>Difference</th>
@@ -114,15 +94,6 @@
                             </td>
                             <td>
                                 <span class="badge bg-light text-secondary border">{{ r.date|date:"l" }}</span>
-                                {% if r.schedule_status.is_sunday %}
-                                    <span class="badge bg-secondary text-white ms-1">Sunday Off</span>
-                                {% elif r.schedule_status.is_saturday %}
-                                    {% if r.schedule_status.is_off_day %}
-                                        <span class="badge bg-info bg-opacity-25 text-info-emphasis border border-info ms-1">{{ r.schedule_status.short_badge }}</span>
-                                    {% else %}
-                                        <span class="badge bg-warning bg-opacity-25 text-dark border border-warning ms-1">{{ r.schedule_status.short_badge }}</span>
-                                    {% endif %}
-                                {% endif %}
                             </td>
                             <td>
                                 <i class="bi bi-box-arrow-in-right text-success me-1"></i>
@@ -136,7 +107,6 @@
                                     <span class="badge badge-ongoing">In Progress</span>
                                 {% endif %}
                             </td>
-                            <td>{{ r.break_minutes }} min</td>
                             <td class="fw-bold text-dark">
                                 {{ r.worked_hours_formatted }}
                             </td>
@@ -173,7 +143,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="10" class="text-center py-5 text-muted">
+                        <td colspan="9" class="text-center py-5 text-muted">
                             <i class="bi bi-calendar-x fs-1 opacity-50 mb-2"></i>
                             <p class="mb-0">No records found for {{ month_name }} {{ selected_year }}.</p>
                             <a href="{% url 'attendance_create' %}" class="btn btn-sm btn-primary-custom mt-2">Log Hours Now</a>

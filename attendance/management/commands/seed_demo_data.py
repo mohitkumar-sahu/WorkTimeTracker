@@ -34,17 +34,17 @@ class Command(BaseCommand):
         AttendanceRecord.objects.filter(user=user, date__month=today.month, date__year=today.year).delete()
         LeaveRecord.objects.filter(user=user, date__month=today.month, date__year=today.year).delete()
 
-        # Seed past 12 working days
+        # Seed past working days (shifts directly include break in duration)
         shift_samples = [
-            (time(9, 25), time(19, 0), 20),   # 9h 15m (Exact)
-            (time(9, 10), time(19, 0), 20),   # 9h 30m (+15m surplus)
-            (time(9, 30), time(19, 15), 15),  # 9h 30m (+15m surplus)
-            (time(9, 45), time(18, 45), 20),  # 8h 40m (-35m deficit)
-            (time(9, 15), time(19, 0), 30),   # 9h 15m (Exact)
-            (time(9, 0), time(19, 0), 30),    # 9h 30m (+15m surplus)
-            (time(10, 0), time(18, 45), 15),  # 8h 30m (-45m deficit)
-            (time(9, 20), time(19, 0), 25),   # 9h 15m (Exact)
-            (time(9, 30), time(19, 30), 20),  # 9h 40m (+25m surplus)
+            (time(9, 30), time(18, 45)),   # 9h 15m (Exact)
+            (time(9, 15), time(18, 45)),   # 9h 30m (+15m surplus)
+            (time(9, 30), time(19, 0)),    # 9h 30m (+15m surplus)
+            (time(9, 45), time(18, 25)),   # 8h 40m (-35m deficit)
+            (time(9, 30), time(18, 45)),   # 9h 15m (Exact)
+            (time(9, 0), time(18, 30)),    # 9h 30m (+15m surplus)
+            (time(10, 0), time(18, 30)),   # 8h 30m (-45m deficit)
+            (time(9, 30), time(18, 45)),   # 9h 15m (Exact)
+            (time(9, 30), time(19, 10)),   # 9h 40m (+25m surplus)
         ]
 
         days_seeded = 0
@@ -59,9 +59,9 @@ class Command(BaseCommand):
                     LeaveRecord.objects.create(
                         user=user,
                         date=current_day,
-                        leave_type="CASUAL",
+                        leave_type="LEAVE",
                         duration=Decimal("1.0"),
-                        reason="Family medical appointment"
+                        reason="Personal work / Day Off"
                     )
                 elif days_seeded == 7:
                     LeaveRecord.objects.create(
@@ -69,16 +69,16 @@ class Command(BaseCommand):
                         date=current_day,
                         leave_type="HALF_DAY",
                         duration=Decimal("0.5"),
-                        reason="Personal work in first half"
+                        reason="Half day off"
                     )
                 else:
-                    login_t, logout_t, brk = shift_samples[sample_idx % len(shift_samples)]
+                    login_t, logout_t = shift_samples[sample_idx % len(shift_samples)]
                     AttendanceRecord.objects.create(
                         user=user,
                         date=current_day,
                         login_time=login_t,
                         logout_time=logout_t,
-                        break_minutes=brk,
+                        break_minutes=0,
                         notes="Regular office shift"
                     )
                     sample_idx += 1
@@ -86,15 +86,13 @@ class Command(BaseCommand):
             current_day -= timedelta(days=1)
 
         # For today: create an active clocked-in record so the user can test Punch Out
-        now_time = timezone.localtime(timezone.now()).time().replace(microsecond=0)
-        # Login 3 hours ago or at 9:30 AM
         today_login = time(9, 30)
         AttendanceRecord.objects.create(
             user=user,
             date=today,
             login_time=today_login,
             logout_time=None,  # In progress!
-            break_minutes=15,
+            break_minutes=0,
             notes="Today's shift"
         )
 

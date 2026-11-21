@@ -24,29 +24,27 @@ class AttendanceCalculationTests(TestCase):
         self.assertEqual(self.user.profile.daily_target_minutes, 555)
 
     def test_daily_attendance_exact_target(self):
-        # 09:30 to 19:00 with 15m break = 9h 15m (555 mins)
+        # 09:30 to 18:45 = 9h 15m (555 mins, break is included in shift)
         rec = AttendanceRecord.objects.create(
             user=self.user,
             date=date(2026, 11, 2),
             login_time=time(9, 30),
-            logout_time=time(19, 0),
-            break_minutes=15
+            logout_time=time(18, 45)
         )
         self.assertEqual(rec.get_worked_minutes(), 555)
         self.assertEqual(rec.worked_hours_formatted, "9h 15m")
         self.assertEqual(rec.diff_minutes, 0)
         self.assertEqual(rec.status, "EXACT")
-        # Expected logout time: 09:30 + 555 min (9h 15m) + 15 min break = 19:00
-        self.assertEqual(rec.expected_logout_time, time(19, 0))
+        # Expected logout time: 09:30 + 555 min (9h 15m) = 18:45
+        self.assertEqual(rec.expected_logout_time, time(18, 45))
 
     def test_daily_attendance_surplus(self):
-        # 09:00 to 19:00 with 30m break = 9h 30m (570 mins) -> +15 mins surplus
+        # 09:00 to 18:30 = 9h 30m (570 mins) -> +15 mins surplus
         rec = AttendanceRecord.objects.create(
             user=self.user,
             date=date(2026, 11, 3),
             login_time=time(9, 0),
-            logout_time=time(19, 0),
-            break_minutes=30
+            logout_time=time(18, 30)
         )
         self.assertEqual(rec.get_worked_minutes(), 570)
         self.assertEqual(rec.worked_hours_formatted, "9h 30m")
@@ -55,13 +53,12 @@ class AttendanceCalculationTests(TestCase):
         self.assertEqual(rec.status, "SURPLUS")
 
     def test_daily_attendance_deficit(self):
-        # 09:30 to 18:00 with 15m break = 8h 15m (495 mins) -> -60 mins deficit
+        # 09:30 to 17:45 = 8h 15m (495 mins) -> -60 mins deficit
         rec = AttendanceRecord.objects.create(
             user=self.user,
             date=date(2026, 11, 4),
             login_time=time(9, 30),
-            logout_time=time(18, 0),
-            break_minutes=15
+            logout_time=time(17, 45)
         )
         self.assertEqual(rec.get_worked_minutes(), 495)
         self.assertEqual(rec.worked_hours_formatted, "8h 15m")
@@ -75,16 +72,14 @@ class AttendanceCalculationTests(TestCase):
             user=self.user,
             date=date(2026, 11, 2), # Monday
             login_time=time(9, 0),
-            logout_time=time(19, 0),
-            break_minutes=30
+            logout_time=time(18, 30)
         )
         # Tue: 9h 00m (540m, -15m)
         AttendanceRecord.objects.create(
             user=self.user,
             date=date(2026, 11, 3), # Tuesday
             login_time=time(9, 30),
-            logout_time=time(19, 0),
-            break_minutes=30
+            logout_time=time(18, 30)
         )
 
         weekly = calculate_weekly_summary(self.user, date(2026, 11, 4))
@@ -96,20 +91,18 @@ class AttendanceCalculationTests(TestCase):
         self.assertTrue(weekly['is_surplus'])
 
     def test_monthly_summary_and_leave_integration(self):
-        # Work 3 days in November 2026
+        # Work 2 days in November 2026
         AttendanceRecord.objects.create(
             user=self.user,
             date=date(2026, 11, 2),
             login_time=time(9, 30),
-            logout_time=time(19, 0),
-            break_minutes=15  # 555m (9h 15m)
+            logout_time=time(18, 45)  # 555m (9h 15m)
         )
         AttendanceRecord.objects.create(
             user=self.user,
             date=date(2026, 11, 3),
             login_time=time(9, 30),
-            logout_time=time(19, 15),
-            break_minutes=15  # 570m (9h 30m, +15m)
+            logout_time=time(19, 0)   # 570m (9h 30m, +15m)
         )
         # Record 1 Casual Leave and 1 Half Day Leave
         LeaveRecord.objects.create(

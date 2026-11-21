@@ -94,7 +94,7 @@ class AttendanceRecord(models.Model):
         return 9 * 60 + 15
 
     def get_worked_minutes(self):
-        """Returns total worked minutes after deducting breaks, or None if logout_time is not set."""
+        """Returns total worked minutes (login to logout duration), or None if logout_time is not set."""
         if not self.logout_time:
             return None
         
@@ -106,9 +106,7 @@ class AttendanceRecord(models.Model):
             logout_dt += timedelta(days=1)
 
         diff = logout_dt - login_dt
-        gross_minutes = int(diff.total_seconds() // 60)
-        net_minutes = max(0, gross_minutes - self.break_minutes)
-        return net_minutes
+        return max(0, int(diff.total_seconds() // 60))
 
     def get_current_elapsed_minutes(self):
         """For ongoing shift today, calculate minutes elapsed until right now."""
@@ -120,8 +118,7 @@ class AttendanceRecord(models.Model):
             login_dt = timezone.make_aware(datetime.combine(self.date, self.login_time))
             if now > login_dt:
                 diff = now - login_dt
-                gross_minutes = int(diff.total_seconds() // 60)
-                return max(0, gross_minutes - self.break_minutes)
+                return max(0, int(diff.total_seconds() // 60))
         return 0
 
     @property
@@ -176,7 +173,7 @@ class AttendanceRecord(models.Model):
     @property
     def expected_logout_time(self):
         """Calculates what time the user must log out to hit their required target (e.g. 9h 15m)."""
-        target_mins = self.target_minutes + self.break_minutes
+        target_mins = self.target_minutes
         login_dt = datetime.combine(self.date, self.login_time)
         required_logout_dt = login_dt + timedelta(minutes=target_mins)
         return required_logout_dt.time()
