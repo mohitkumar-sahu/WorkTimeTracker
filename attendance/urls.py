@@ -17,6 +17,7 @@ urlpatterns = [
     path('leaves/add/', views.leave_create, name='leave_create'),
     path('leaves/<int:pk>/delete/', views.leave_delete, name='leave_delete'),
     path('settings/', views.profile_settings, name='profile_settings'),
+    path('setup-db/', views.setup_db, name='setup_db'),
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('register/', views.register_view, name='register'),

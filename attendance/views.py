@@ -722,15 +722,55 @@ def register_view(request):
     return render(request, 'attendance/register.html', context)
 
 
+def setup_db(request):
+    """
+    Initializes/migrates database tables and seeds demo user.
+    Useful for one-time initialization of fresh cloud databases (like Neon PostgreSQL).
+    """
+    from django.core.management import call_command
+    from django.http import HttpResponse
+    try:
+        call_command("migrate", interactive=False)
+        from django.contrib.auth.models import User
+        if not User.objects.filter(username="demo").exists():
+            call_command("seed_demo_data")
+        return HttpResponse(
+            "<div style='font-family:sans-serif;padding:40px;text-align:center;'>"
+            "<h2 style='color:#16a34a;'>✅ Database Migrated & Initialized Successfully!</h2>"
+            "<p>All database tables and the demo user (username: <code>demo</code>, password: <code>demo123</code>) are ready.</p>"
+            "<p><a href='/login/' style='display:inline-block;padding:10px 20px;background:#4f46e5;color:white;text-decoration:none;border-radius:6px;font-weight:bold;'>Go to Login Page →</a></p>"
+            "</div>"
+        )
+    except Exception as e:
+        return HttpResponse(f"Error during migration: {e}", status=500)
+
+
 def login_view(request):
+    from django.core.management import call_command
+    from django.db.utils import ProgrammingError, OperationalError
+
     if request.user.is_authenticated:
         return redirect('dashboard')
 
     timeout_notice = request.GET.get('timeout') == '1'
 
     if request.method == 'POST':
-        form = AuthenticationForm(request, data=request.POST)
-        if form.is_valid():
+        try:
+            form = AuthenticationForm(request, data=request.POST)
+            is_valid = form.is_valid()
+        except (ProgrammingError, OperationalError):
+            # Fresh database without tables - auto migrate once
+            try:
+                call_command("migrate", interactive=False)
+                from django.contrib.auth.models import User
+                if not User.objects.filter(username="demo").exists():
+                    call_command("seed_demo_data")
+                form = AuthenticationForm(request, data=request.POST)
+                is_valid = form.is_valid()
+            except Exception:
+                is_valid = False
+
+        if is_valid:
             user = form.get_user()
             login(request, user)
 
@@ -746,6 +786,7 @@ def login_view(request):
         form = AuthenticationForm()
 
     return render(request, 'attendance/login.html', {'form': form, 'timeout_notice': timeout_notice})
+
 
 
 def logout_view(request):
