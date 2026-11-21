@@ -64,7 +64,7 @@ Open your browser and visit: **http://127.0.0.1:8000**
 ## 📁 Project Architecture
 
 ```
-personal_project/
+WorkTimeTracker/
 ├── attendance/                 # Main attendance & leave tracking app
 │   ├── models.py               # UserProfile, AttendanceRecord, LeaveRecord
 │   ├── services.py             # Weekly/Monthly aggregations & salary deduction math
