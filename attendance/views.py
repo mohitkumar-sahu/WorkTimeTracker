@@ -213,31 +213,92 @@ def quick_punch_out(request):
     return redirect('dashboard')
 
 
+def get_user_date_range(user):
+    """
+    Returns (start_date, end_date) representing when the user first joined/logged
+    until the current local date.
+    """
+    today = timezone.localdate()
+    start_date = user.date_joined.date() if user.date_joined else today
+
+    # Also check if user has earlier attendance or leave records
+    earliest_att = AttendanceRecord.objects.filter(user=user).order_by('date').first()
+    if earliest_att and earliest_att.date < start_date:
+        start_date = earliest_att.date
+
+    earliest_leave = LeaveRecord.objects.filter(user=user).order_by('date').first()
+    if earliest_leave and earliest_leave.date < start_date:
+        start_date = earliest_leave.date
+
+    # Ensure start_date does not exceed today
+    if start_date > today:
+        start_date = today
+
+    return start_date, today
+
+
 @login_required
 def attendance_history(request):
     today = timezone.localdate()
-    year = int(request.GET.get('year', today.year))
-    month = int(request.GET.get('month', today.month))
+    start_date, end_date = get_user_date_range(request.user)
 
-    monthly_stats = calculate_monthly_summary(request.user, year, month)
+    # Years available: only from user's first active year until current year
+    years = list(range(start_date.year, end_date.year + 1))
+
+    try:
+        selected_year = int(request.GET.get('year', today.year))
+    except (ValueError, TypeError):
+        selected_year = today.year
+
+    if selected_year not in years:
+        selected_year = end_date.year
+
+    # Determine valid month range for the selected year
+    min_month = start_date.month if selected_year == start_date.year else 1
+    max_month = end_date.month if selected_year == end_date.year else 12
+
+    try:
+        selected_month = int(request.GET.get('month', today.month))
+    except (ValueError, TypeError):
+        selected_month = today.month
+
+    if selected_month < min_month or selected_month > max_month:
+        selected_month = max_month  # default to latest valid month
+
+    # Build valid months list for the selected year
+    months = [
+        (m, calendar.month_name[m])
+        for m in range(min_month, max_month + 1)
+    ]
+
+    # Map of valid months per year for instant JS dropdown updates
+    year_months_map = {}
+    for y in years:
+        y_min_m = start_date.month if y == start_date.year else 1
+        y_max_m = end_date.month if y == end_date.year else 12
+        year_months_map[y] = [
+            {'num': m, 'name': calendar.month_name[m]}
+            for m in range(y_min_m, y_max_m + 1)
+        ]
+
+    monthly_stats = calculate_monthly_summary(request.user, selected_year, selected_month)
     records = AttendanceRecord.objects.filter(
         user=request.user,
-        date__year=year,
-        date__month=month
+        date__year=selected_year,
+        date__month=selected_month
     ).order_by('-date')
 
-    # Year choices (current year - 2 to current year + 1)
-    years = list(range(today.year - 2, today.year + 2))
-    months = [(i, calendar.month_name[i]) for i in range(1, 13)]
-
     context = {
-        'selected_year': year,
-        'selected_month': month,
-        'month_name': calendar.month_name[month],
+        'selected_year': selected_year,
+        'selected_month': selected_month,
+        'month_name': calendar.month_name[selected_month],
         'monthly_stats': monthly_stats,
         'records': records,
         'years': years,
         'months': months,
+        'year_months_json': json.dumps(year_months_map),
+        'start_date': start_date,
+        'end_date': end_date,
     }
     return render(request, 'attendance/history.html', context)
 
@@ -245,8 +306,30 @@ def attendance_history(request):
 @login_required
 def export_attendance_csv(request):
     today = timezone.localdate()
-    year = int(request.GET.get('year', today.year))
-    month = int(request.GET.get('month', today.month))
+    start_date, end_date = get_user_date_range(request.user)
+
+    try:
+        year = int(request.GET.get('year', today.year))
+    except (ValueError, TypeError):
+        year = today.year
+
+    try:
+        month = int(request.GET.get('month', today.month))
+    except (ValueError, TypeError):
+        month = today.month
+
+    # Clamp year and month
+    if year < start_date.year:
+        year = start_date.year
+    elif year > end_date.year:
+        year = end_date.year
+
+    min_m = start_date.month if year == start_date.year else 1
+    max_m = end_date.month if year == end_date.year else 12
+    if month < min_m:
+        month = min_m
+    elif month > max_m:
+        month = max_m
 
     records = AttendanceRecord.objects.filter(
         user=request.user,
@@ -335,17 +418,27 @@ def attendance_delete(request, pk):
 @login_required
 def leave_list(request):
     today = timezone.localdate()
-    year = int(request.GET.get('year', today.year))
+    start_date, end_date = get_user_date_range(request.user)
+    years = list(range(start_date.year, end_date.year + 1))
+
+    try:
+        year = int(request.GET.get('year', today.year))
+    except (ValueError, TypeError):
+        year = today.year
+
+    if year not in years:
+        year = end_date.year
 
     leave_stats = get_leave_statistics(request.user, year)
     leaves = LeaveRecord.objects.filter(user=request.user, date__year=year).order_by('-date')
-    years = list(range(today.year - 2, today.year + 2))
 
     context = {
         'selected_year': year,
         'leave_stats': leave_stats,
         'leaves': leaves,
         'years': years,
+        'start_date': start_date,
+        'end_date': end_date,
     }
     return render(request, 'attendance/leaves.html', context)
 

@@ -258,3 +258,22 @@ class AttendanceCalculationTests(TestCase):
         res = self.client.get(f'/quick-cancel-leave/{leave.pk}/')
         self.assertEqual(res.status_code, 302)
         self.assertFalse(LeaveRecord.objects.filter(pk=leave.pk).exists())
+
+    def test_calendar_search_filter_bounded_by_signup_and_current_month(self):
+        # Create a user who joined in November 2026
+        u = User.objects.create_user(username='newjoiner', password='password123')
+        self.client.login(username='newjoiner', password='password123')
+
+        res = self.client.get('/history/')
+        self.assertEqual(res.status_code, 200)
+
+        # Context years should only contain 2026
+        years = res.context['years']
+        self.assertEqual(years, [2026])
+
+        # Context months should only contain November (since user joined in Nov 2026 and current month is Nov 2026)
+        months = res.context['months']
+        month_numbers = [m[0] for m in months]
+        self.assertEqual(month_numbers, [11])  # Only November!
+        self.assertNotIn(12, month_numbers)    # No December
+        self.assertNotIn(10, month_numbers)    # No October

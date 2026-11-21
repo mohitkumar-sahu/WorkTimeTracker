@@ -24,14 +24,14 @@
         <!-- Month and Year Selector Form -->
         <div class="col-lg-5">
             <form method="get" class="d-flex gap-2 align-items-center">
-                <select name="month" class="form-select">
+                <select name="month" id="filterMonthSelect" class="form-select">
                     {% for m_num, m_name in months %}
                         <option value="{{ m_num }}" {% if m_num == selected_month %}selected{% endif %}>
                             {{ m_name }}
                         </option>
                     {% endfor %}
                 </select>
-                <select name="year" class="form-select">
+                <select name="year" id="filterYearSelect" class="form-select">
                     {% for y in years %}
                         <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>
                             {{ y }}
@@ -184,4 +184,38 @@
         </table>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const yearMonthsMap = {{ year_months_json|safe }};
+    const yearSelect = document.getElementById('filterYearSelect');
+    const monthSelect = document.getElementById('filterMonthSelect');
+
+    if (yearSelect && monthSelect) {
+        yearSelect.addEventListener('change', function() {
+            const selectedYear = parseInt(this.value);
+            const validMonths = yearMonthsMap[selectedYear] || [];
+            const currentMonthVal = parseInt(monthSelect.value);
+
+            monthSelect.innerHTML = '';
+            let selectedSet = false;
+            validMonths.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.num;
+                opt.textContent = m.name;
+                if (m.num === currentMonthVal) {
+                    opt.selected = true;
+                    selectedSet = true;
+                }
+                monthSelect.appendChild(opt);
+            });
+
+            if (!selectedSet && validMonths.length > 0) {
+                // Default to latest valid month in that year
+                monthSelect.lastElementChild.selected = true;
+            }
+        });
+    }
+</script>
 {% endblock %}
