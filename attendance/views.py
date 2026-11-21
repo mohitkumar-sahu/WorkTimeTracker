@@ -1,7 +1,8 @@
 import csv
 import json
 import calendar
-from datetime import datetime
+from datetime import datetime, date
+from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.forms import AuthenticationForm
@@ -23,6 +24,37 @@ from .services import (
 )
 
 
+def get_month_saturdays_status(user, year, month):
+    """Returns list of all Saturdays in the month and whether each is marked off or worked."""
+    total_days = calendar.monthrange(year, month)[1]
+    saturdays = []
+    today = timezone.localdate()
+    ordinal_names = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th"}
+
+    for day in range(1, total_days + 1):
+        d = date(year, month, day)
+        if d.weekday() == 5:  # Saturday
+            ordinal = (day - 1) // 7 + 1
+            ordinal_str = ordinal_names.get(ordinal, f"{ordinal}th")
+
+            leave = LeaveRecord.objects.filter(user=user, date=d).first()
+            att = AttendanceRecord.objects.filter(user=user, date=d).first()
+
+            is_off = (leave is not None and leave.leave_type in ('SATURDAY_OFF', 'LEAVE', 'HOLIDAY'))
+
+            saturdays.append({
+                'date': d,
+                'day_num': day,
+                'ordinal': ordinal,
+                'ordinal_label': f"{ordinal_str} Saturday",
+                'is_today': (d == today),
+                'leave': leave,
+                'attendance': att,
+                'is_off': is_off,
+            })
+    return saturdays
+
+
 @login_required
 def dashboard(request):
     today = timezone.localdate()
@@ -39,6 +71,10 @@ def dashboard(request):
     leave_stats = get_leave_statistics(request.user, today.year)
     chart_data = get_chart_data_for_month(request.user, today.year, today.month)
 
+    # All Saturdays in current month with their status
+    month_saturdays = get_month_saturdays_status(request.user, today.year, today.month)
+    saturdays_off_count = sum(1 for s in month_saturdays if s['is_off'])
+
     # Recent 7 attendance records
     recent_records = AttendanceRecord.objects.filter(user=request.user).order_by('-date')[:7]
 
@@ -54,11 +90,66 @@ def dashboard(request):
         'weekly_stats': weekly_stats,
         'monthly_stats': monthly_stats,
         'leave_stats': leave_stats,
+        'month_saturdays': month_saturdays,
+        'saturdays_off_count': saturdays_off_count,
         'chart_data_json': json.dumps(chart_data),
         'recent_records': recent_records,
         'target_formatted': target_formatted,
     }
     return render(request, 'attendance/dashboard.html', context)
+
+
+@login_required
+@require_POST
+def quick_mark_leave(request):
+    """Allows 1-click marking of today or any selected date as company off / leave from the home page."""
+    date_str = request.POST.get('date')
+    if date_str:
+        try:
+            leave_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            leave_date = timezone.localdate()
+    else:
+        leave_date = timezone.localdate()
+
+    leave_type = request.POST.get('leave_type', 'SATURDAY_OFF')
+    duration = Decimal(request.POST.get('duration', '1.0'))
+    reason = request.POST.get('reason', '').strip()
+
+    if not reason:
+        if leave_type == 'SATURDAY_OFF':
+            reason = "Company declared Saturday Off"
+        elif leave_type == 'HOLIDAY':
+            reason = "Company declared Holiday"
+        else:
+            reason = "Leave / Day Off"
+
+    leave, created = LeaveRecord.objects.update_or_create(
+        user=request.user,
+        date=leave_date,
+        defaults={
+            'leave_type': leave_type,
+            'duration': duration,
+            'reason': reason,
+        }
+    )
+
+    messages.success(
+        request,
+        f"🌴 {leave_date.strftime('%A, %b %d')} marked as {leave.get_leave_type_display()}! "
+        f"This day is protected and will not reduce your daily working average."
+    )
+    return redirect('dashboard')
+
+
+@login_required
+def quick_cancel_leave(request, pk):
+    """Cancels/unmarks a leave directly from the home page."""
+    leave = get_object_or_404(LeaveRecord, pk=pk, user=request.user)
+    date_str = leave.date.strftime('%A, %b %d')
+    leave.delete()
+    messages.info(request, f"Removed leave for {date_str}.")
+    return redirect('dashboard')
 
 
 @login_required

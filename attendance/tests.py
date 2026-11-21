@@ -241,3 +241,20 @@ class AttendanceCalculationTests(TestCase):
         res = self.client.get('/settings/')
         self.assertEqual(res.status_code, 200)
         self.assertContains(res, "Role & Work Time Settings")
+
+        # 6. Quick Mark Leave from Home Page
+        res = self.client.post('/quick-mark-leave/', {
+            'date': '2026-11-21',
+            'leave_type': 'SATURDAY_OFF',
+            'duration': '1.0',
+            'reason': 'Company announced Saturday Off'
+        })
+        self.assertEqual(res.status_code, 302)
+        leave = LeaveRecord.objects.filter(user=self.user, date=date(2026, 11, 21)).first()
+        self.assertIsNotNone(leave)
+        self.assertEqual(leave.leave_type, 'SATURDAY_OFF')
+
+        # 7. Quick Cancel Leave from Home Page
+        res = self.client.get(f'/quick-cancel-leave/{leave.pk}/')
+        self.assertEqual(res.status_code, 302)
+        self.assertFalse(LeaveRecord.objects.filter(pk=leave.pk).exists())
