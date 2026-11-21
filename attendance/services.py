@@ -1,5 +1,6 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, time
 import calendar
+import math
 from decimal import Decimal
 from django.utils import timezone
 from django.db.models import Sum
@@ -7,7 +8,7 @@ from .models import AttendanceRecord, LeaveRecord
 
 
 def format_minutes_to_hm(minutes, show_sign=False):
-    """Converts minutes to formatted string like '9h 15m' or '+1h 20m'."""
+    """Converts minutes to formatted string like '9h 15m' or '+1h 20m' or '35m'."""
     if minutes is None:
         return "-"
     
@@ -16,15 +17,22 @@ def format_minutes_to_hm(minutes, show_sign=False):
     h = abs_mins // 60
     m = abs_mins % 60
 
+    if h == 0 and abs_mins > 0:
+        time_str = f"{m}m"
+    elif h == 0 and abs_mins == 0:
+        time_str = "0m"
+    else:
+        time_str = f"{h}h {m:02d}m"
+
     if show_sign:
         if is_negative:
-            return f"-{h}h {m:02d}m"
+            return f"-{time_str}"
         elif abs_mins == 0:
             return "0m"
         else:
-            return f"+{h}h {m:02d}m"
+            return f"+{time_str}"
     else:
-        return f"{h}h {m:02d}m"
+        return time_str
 
 
 def get_day_schedule_status(user, target_date):
@@ -384,4 +392,195 @@ def get_chart_data_for_month(user, year, month):
         'background_colors': background_colors,
         'border_colors': border_colors,
         'target_decimal': target_decimal,
+    }
+
+
+def get_next_working_day(user, from_date=None):
+    """Finds the next official working day for the user, skipping Sundays, off-Saturdays, and recorded leaves."""
+    if from_date is None:
+        from_date = timezone.localdate()
+    curr = from_date + timedelta(days=1)
+    for _ in range(14):  # Look up to 2 weeks ahead
+        status = get_day_schedule_status(user, curr)
+        leave = LeaveRecord.objects.filter(user=user, date=curr).first()
+        is_leave = leave is not None and leave.leave_type in ('SATURDAY_OFF', 'HOLIDAY', 'LEAVE', 'PAID', 'SICK')
+        if not status['is_off_day'] and not is_leave:
+            return curr
+        curr += timedelta(days=1)
+    return from_date + timedelta(days=1)
+
+
+def get_remaining_working_days_in_month(user, from_date=None):
+    """Calculates remaining official working days in the month strictly after from_date."""
+    if from_date is None:
+        from_date = timezone.localdate()
+    year = from_date.year
+    month = from_date.month
+    total_days = calendar.monthrange(year, month)[1]
+
+    count = 0
+    for day in range(from_date.day + 1, total_days + 1):
+        d = date(year, month, day)
+        status = get_day_schedule_status(user, d)
+        leave = LeaveRecord.objects.filter(user=user, date=d).first()
+        is_leave = leave is not None and leave.leave_type in ('SATURDAY_OFF', 'HOLIDAY', 'LEAVE', 'PAID', 'SICK')
+        if not status['is_off_day'] and not is_leave:
+            count += 1
+    return count
+
+
+def calculate_flexi_recovery_plan(user, target_date=None):
+    """
+    Computes actionable compensatory work time plan for startups with flexible hours:
+    - If user leaves early today (diff_minutes < 0), calculates tomorrow's extended target shift.
+    - If user has past accumulated deficit and is clocked in today, calculates recovery punch-out time.
+    - If user has banked surplus buffer, calculates safe early departure punch-out time.
+    - Provides single-day next shift recovery and gradual spread over remaining working days.
+    """
+    if target_date is None:
+        target_date = timezone.localdate()
+
+    daily_target_minutes = user.profile.daily_target_minutes
+    daily_target_formatted = user.profile.daily_target_formatted
+
+    today_record = AttendanceRecord.objects.filter(user=user, date=target_date).first()
+    monthly_summary = calculate_monthly_summary(user, target_date.year, target_date.month)
+    next_working_day = get_next_working_day(user, target_date)
+    remaining_working_days = get_remaining_working_days_in_month(user, target_date)
+
+    today_shift_completed = False
+    today_left_early = False
+    today_worked_minutes = 0
+    today_worked_formatted = "-"
+    today_diff_minutes = 0
+    today_deficit_minutes = 0
+    today_deficit_formatted = "0m"
+    today_surplus_minutes = 0
+    today_surplus_formatted = "0m"
+
+    is_shift_in_progress = False
+    login_time = None
+    standard_logout_time = None
+    recovery_logout_time = None
+    safe_early_logout_time = None
+
+    if today_record:
+        if today_record.logout_time:
+            today_shift_completed = True
+            today_worked_minutes = today_record.get_worked_minutes() or 0
+            today_worked_formatted = today_record.worked_hours_formatted
+            today_diff_minutes = today_record.diff_minutes or 0
+            if today_diff_minutes < 0:
+                today_left_early = True
+                today_deficit_minutes = abs(today_diff_minutes)
+                today_deficit_formatted = format_minutes_to_hm(today_deficit_minutes)
+            elif today_diff_minutes > 0:
+                today_surplus_minutes = today_diff_minutes
+                today_surplus_formatted = format_minutes_to_hm(today_surplus_minutes)
+        else:
+            is_shift_in_progress = True
+            login_time = today_record.login_time
+            standard_logout_time = today_record.expected_logout_time
+
+    # Prior deficit / surplus in current month before target_date
+    prior_records = AttendanceRecord.objects.filter(
+        user=user,
+        date__year=target_date.year,
+        date__month=target_date.month,
+        date__lt=target_date,
+        logout_time__isnull=False
+    )
+    prior_days_worked = len(prior_records)
+    prior_worked_minutes = sum(r.get_worked_minutes() for r in prior_records)
+    prior_target_minutes = prior_days_worked * daily_target_minutes
+    prior_diff_minutes = prior_worked_minutes - prior_target_minutes if prior_days_worked > 0 else 0
+    prior_deficit_minutes = abs(prior_diff_minutes) if prior_diff_minutes < 0 else 0
+    prior_surplus_minutes = prior_diff_minutes if prior_diff_minutes > 0 else 0
+
+    # Net month balance
+    net_monthly_diff = monthly_summary['diff_minutes']
+    has_monthly_deficit = net_monthly_diff < 0
+    net_deficit_minutes = abs(net_monthly_diff) if has_monthly_deficit else 0
+    net_deficit_formatted = format_minutes_to_hm(net_deficit_minutes)
+    net_surplus_minutes = net_monthly_diff if net_monthly_diff > 0 else 0
+    net_surplus_formatted = format_minutes_to_hm(net_surplus_minutes)
+
+    # In-progress shift recovery / safe departure
+    if is_shift_in_progress and login_time:
+        login_dt = datetime.combine(target_date, login_time)
+        if prior_deficit_minutes > 0:
+            rec_dt = login_dt + timedelta(minutes=daily_target_minutes + prior_deficit_minutes)
+            recovery_logout_time = rec_dt.time()
+        elif prior_surplus_minutes > 0:
+            safe_mins = max(0, daily_target_minutes - prior_surplus_minutes)
+            safe_dt = login_dt + timedelta(minutes=safe_mins)
+            safe_early_logout_time = safe_dt.time()
+
+    # Recovery deficit targeting next working day:
+    # If today user left early, prioritize recovering today's early leave deficit
+    # Otherwise if month has net deficit, recover that
+    if today_left_early:
+        deficit_to_recover = today_deficit_minutes
+    elif net_deficit_minutes > 0:
+        deficit_to_recover = net_deficit_minutes
+    else:
+        deficit_to_recover = 0
+
+    next_day_target_minutes = daily_target_minutes + deficit_to_recover
+    next_day_target_formatted = format_minutes_to_hm(next_day_target_minutes)
+
+    # Next working day sample punch in at 09:30 AM (or user's today's punch in if available)
+    sample_login_time = login_time if login_time else time(9, 30)
+    sample_login_dt = datetime.combine(next_working_day, sample_login_time)
+    next_day_expected_logout_dt = sample_login_dt + timedelta(minutes=next_day_target_minutes)
+    next_day_expected_logout_time = next_day_expected_logout_dt.time()
+
+    # Gradual spread over remaining days of month
+    spread_extra_per_day = 0
+    spread_daily_target_minutes = daily_target_minutes
+    spread_daily_target_formatted = daily_target_formatted
+    if remaining_working_days > 0 and deficit_to_recover > 0:
+        spread_extra_per_day = math.ceil(deficit_to_recover / remaining_working_days)
+        spread_daily_target_minutes = daily_target_minutes + spread_extra_per_day
+        spread_daily_target_formatted = format_minutes_to_hm(spread_daily_target_minutes)
+
+    return {
+        'target_date': target_date,
+        'daily_target_minutes': daily_target_minutes,
+        'daily_target_formatted': daily_target_formatted,
+        'today_shift_completed': today_shift_completed,
+        'today_left_early': today_left_early,
+        'today_worked_minutes': today_worked_minutes,
+        'today_worked_formatted': today_worked_formatted,
+        'today_diff_minutes': today_diff_minutes,
+        'today_deficit_minutes': today_deficit_minutes,
+        'today_deficit_formatted': today_deficit_formatted,
+        'today_surplus_minutes': today_surplus_minutes,
+        'today_surplus_formatted': today_surplus_formatted,
+        'is_shift_in_progress': is_shift_in_progress,
+        'login_time': login_time,
+        'standard_logout_time': standard_logout_time,
+        'recovery_logout_time': recovery_logout_time,
+        'safe_early_logout_time': safe_early_logout_time,
+        'prior_deficit_minutes': prior_deficit_minutes,
+        'prior_deficit_formatted': format_minutes_to_hm(prior_deficit_minutes),
+        'prior_surplus_minutes': prior_surplus_minutes,
+        'prior_surplus_formatted': format_minutes_to_hm(prior_surplus_minutes),
+        'has_monthly_deficit': has_monthly_deficit,
+        'net_deficit_minutes': net_deficit_minutes,
+        'net_deficit_formatted': net_deficit_formatted,
+        'net_surplus_minutes': net_surplus_minutes,
+        'net_surplus_formatted': net_surplus_formatted,
+        'deficit_to_recover': deficit_to_recover,
+        'deficit_to_recover_formatted': format_minutes_to_hm(deficit_to_recover),
+        'next_working_day': next_working_day,
+        'next_working_day_name': next_working_day.strftime("%A, %b %d"),
+        'next_day_target_minutes': next_day_target_minutes,
+        'next_day_target_formatted': next_day_target_formatted,
+        'sample_login_time': sample_login_time,
+        'next_day_expected_logout_time': next_day_expected_logout_time,
+        'remaining_working_days': remaining_working_days,
+        'spread_extra_per_day': spread_extra_per_day,
+        'spread_daily_target_minutes': spread_daily_target_minutes,
+        'spread_daily_target_formatted': spread_daily_target_formatted,
     }

@@ -12,6 +12,7 @@ from attendance.services import (
     get_day_schedule_status,
     get_month_schedule_summary,
     format_minutes_to_hm,
+    calculate_flexi_recovery_plan,
 )
 
 
@@ -413,3 +414,77 @@ class AttendanceCalculationTests(TestCase):
         self.assertContains(res, "Hourly Cut: -₹216.22")
         self.assertContains(res, "-1h 00m")
         self.assertNotContains(res, "-₹216.22 cut")
+
+    def test_flexi_recovery_plan_when_leaving_early_today(self):
+        # User worked 8h 40m (09:30 to 18:10 = 520 mins) vs 9h 15m (555 mins) -> -35m deficit
+        AttendanceRecord.objects.create(
+            user=self.user,
+            date=date(2026, 11, 2),  # Monday
+            login_time=time(9, 30),
+            logout_time=time(18, 10)
+        )
+
+        plan = calculate_flexi_recovery_plan(self.user, date(2026, 11, 2))
+        self.assertTrue(plan['today_left_early'])
+        self.assertEqual(plan['today_deficit_minutes'], 35)
+        self.assertEqual(plan['today_deficit_formatted'], "35m")
+        # Tomorrow (Tuesday Nov 3): Target = 555 + 35 = 590 minutes = 9h 50m
+        self.assertEqual(plan['next_day_target_minutes'], 590)
+        self.assertEqual(plan['next_day_target_formatted'], "9h 50m")
+        self.assertEqual(plan['next_working_day'], date(2026, 11, 3))
+        # Punching in at 09:30 AM means logout at 19:20 (07:20 PM)
+        self.assertEqual(plan['next_day_expected_logout_time'], time(19, 20))
+
+    def test_flexi_recovery_plan_ongoing_shift_with_prior_deficit(self):
+        # Day 1: User leaves 35 mins early (-35m deficit)
+        AttendanceRecord.objects.create(
+            user=self.user,
+            date=date(2026, 11, 2),
+            login_time=time(9, 30),
+            logout_time=time(18, 10)
+        )
+        # Day 2: User is clocked in at 09:30 AM (ongoing shift)
+        AttendanceRecord.objects.create(
+            user=self.user,
+            date=date(2026, 11, 3),
+            login_time=time(9, 30),
+            logout_time=None
+        )
+
+        plan = calculate_flexi_recovery_plan(self.user, date(2026, 11, 3))
+        self.assertTrue(plan['is_shift_in_progress'])
+        self.assertEqual(plan['prior_deficit_minutes'], 35)
+        self.assertEqual(plan['standard_logout_time'], time(18, 45))   # 06:45 PM
+        self.assertEqual(plan['recovery_logout_time'], time(19, 20))   # 07:20 PM to clear -35m!
+
+    def test_flexi_recovery_plan_ongoing_shift_with_prior_surplus(self):
+        # Day 1: User works 9h 45m (+30 mins surplus buffer)
+        AttendanceRecord.objects.create(
+            user=self.user,
+            date=date(2026, 11, 2),
+            login_time=time(9, 30),
+            logout_time=time(19, 15)
+        )
+        # Day 2: User is clocked in at 09:30 AM (ongoing shift)
+        AttendanceRecord.objects.create(
+            user=self.user,
+            date=date(2026, 11, 3),
+            login_time=time(9, 30),
+            logout_time=None
+        )
+
+        plan = calculate_flexi_recovery_plan(self.user, date(2026, 11, 3))
+        self.assertTrue(plan['is_shift_in_progress'])
+        self.assertEqual(plan['prior_surplus_minutes'], 30)
+        self.assertEqual(plan['standard_logout_time'], time(18, 45))   # 06:45 PM
+        # Safe early logout time = 09:30 + (555 - 30) mins = 09:30 + 525 mins = 18:15 (06:15 PM)
+        self.assertEqual(plan['safe_early_logout_time'], time(18, 15))
+
+    def test_dashboard_renders_flexi_planner_and_simulator(self):
+        self.client.login(username='testuser', password='password123')
+        res = self.client.get('/')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Flexible Hours")
+        self.assertContains(res, "Deficit Recovery Planner")
+        self.assertContains(res, "Compensatory")
+        self.assertContains(res, "Live Calculator")

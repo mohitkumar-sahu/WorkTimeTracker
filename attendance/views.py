@@ -22,6 +22,7 @@ from .services import (
     get_chart_data_for_month,
     get_day_schedule_status,
     format_minutes_to_hm,
+    calculate_flexi_recovery_plan,
 )
 
 
@@ -82,6 +83,9 @@ def dashboard(request):
     # Target info
     target_formatted = request.user.profile.daily_target_formatted
 
+    # Flexi-hours recovery plan
+    flexi_plan = calculate_flexi_recovery_plan(request.user, today)
+
     context = {
         'today': today,
         'now_dt': now_dt,
@@ -96,6 +100,7 @@ def dashboard(request):
         'chart_data_json': json.dumps(chart_data),
         'recent_records': recent_records,
         'target_formatted': target_formatted,
+        'flexi_plan': flexi_plan,
     }
     return render(request, 'attendance/dashboard.html', context)
 
