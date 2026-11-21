@@ -36,14 +36,20 @@ def get_month_saturdays_status(user, year, month):
     today = timezone.localdate()
     ordinal_names = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th"}
 
+    # Bulk fetch all month leaves & attendances in 2 queries instead of querying inside loop
+    start_d = date(year, month, 1)
+    end_d = date(year, month, total_days)
+    leaves_by_date = {l.date: l for l in LeaveRecord.objects.filter(user=user, date__range=[start_d, end_d])}
+    att_by_date = {a.date: a for a in AttendanceRecord.objects.filter(user=user, date__range=[start_d, end_d])}
+
     for day in range(1, total_days + 1):
         d = date(year, month, day)
         if d.weekday() == 5:  # Saturday
             ordinal = (day - 1) // 7 + 1
             ordinal_str = ordinal_names.get(ordinal, f"{ordinal}th")
 
-            leave = LeaveRecord.objects.filter(user=user, date=d).first()
-            att = AttendanceRecord.objects.filter(user=user, date=d).first()
+            leave = leaves_by_date.get(d)
+            att = att_by_date.get(d)
 
             is_off = (leave is not None and leave.leave_type in ('SATURDAY_OFF', 'LEAVE', 'HOLIDAY'))
 
@@ -81,7 +87,7 @@ def dashboard(request):
     saturdays_off_count = sum(1 for s in month_saturdays if s['is_off'])
 
     # Recent 7 attendance records
-    recent_records = AttendanceRecord.objects.filter(user=request.user).order_by('-date')[:7]
+    recent_records = AttendanceRecord.objects.filter(user=request.user).select_related('user__profile').order_by('-date')[:7]
 
     # Target info
     target_formatted = request.user.profile.daily_target_formatted
@@ -389,7 +395,7 @@ def attendance_history(request):
         user=request.user,
         date__year=selected_year,
         date__month=selected_month
-    ).order_by('-date')
+    ).select_related('user__profile').order_by('-date')
 
     monthly_leaves = LeaveRecord.objects.filter(
         user=request.user,

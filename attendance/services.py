@@ -35,7 +35,7 @@ def format_minutes_to_hm(minutes, show_sign=False):
         return time_str
 
 
-def get_day_schedule_status(user, target_date):
+def get_day_schedule_status(user, target_date, policy=None):
     """
     Returns day schedule details based on startup weekend policy:
     - Sundays are always fixed weekly off.
@@ -58,7 +58,9 @@ def get_day_schedule_status(user, target_date):
     elif weekday == 5:  # Saturday
         ordinal = (target_date.day - 1) // 7 + 1
         ordinal_str = ordinal_names.get(ordinal, f"{ordinal}th")
-        policy = getattr(user.profile, 'saturday_off_policy', 'SECOND_FOURTH')
+        if policy is None:
+            profile = getattr(user, 'profile', None)
+            policy = getattr(profile, 'saturday_off_policy', 'SECOND_FOURTH') if profile else 'SECOND_FOURTH'
 
         is_off = False
         if policy == 'SECOND_FOURTH' and ordinal in (2, 4):
@@ -107,7 +109,7 @@ def get_day_schedule_status(user, target_date):
         }
 
 
-def get_month_schedule_summary(user, year, month):
+def get_month_schedule_summary(user, year, month, policy=None):
     """
     Calculates expected working days, total Sundays, and the 2 off-Saturdays for the month.
     """
@@ -117,9 +119,32 @@ def get_month_schedule_summary(user, year, month):
     working_saturdays = []
     weekdays_count = 0
 
+    if policy is None:
+        profile = getattr(user, 'profile', None)
+        policy = getattr(profile, 'saturday_off_policy', 'SECOND_FOURTH') if profile else 'SECOND_FOURTH'
+
+    # Pre-fetch flexible off dates if needed so no query inside the loop
+    flexible_offs = set()
+    if policy == 'FLEXIBLE_TWO':
+        flexible_offs = set(LeaveRecord.objects.filter(
+            user=user,
+            date__year=year,
+            date__month=month,
+            leave_type='SATURDAY_OFF'
+        ).values_list('date', flat=True))
+
     for day in range(1, total_days + 1):
         d = date(year, month, day)
-        status = get_day_schedule_status(user, d)
+        if policy == 'FLEXIBLE_TWO' and d.weekday() == 5:
+            is_off = d in flexible_offs
+            status = {
+                'is_sunday': False,
+                'is_saturday': True,
+                'is_off_day': is_off,
+            }
+        else:
+            status = get_day_schedule_status(user, d, policy=policy)
+
         if status['is_sunday']:
             sundays.append(d)
         elif status['is_saturday']:
@@ -161,7 +186,7 @@ def calculate_weekly_summary(user, target_date=None):
     records = AttendanceRecord.objects.filter(
         user=user,
         date__range=[monday, sunday]
-    ).order_by('date')
+    ).select_related('user__profile').order_by('date')
 
     target_per_day = user.profile.daily_target_minutes
 
@@ -222,7 +247,7 @@ def calculate_monthly_summary(user, year=None, month=None):
         user=user,
         date__year=year,
         date__month=month
-    ).order_by('date')
+    ).select_related('user__profile').order_by('date')
 
     for r in records:
         r.schedule_status = get_day_schedule_status(user, r.date)
@@ -395,36 +420,58 @@ def get_chart_data_for_month(user, year, month):
     }
 
 
-def get_next_working_day(user, from_date=None):
+def get_next_working_day(user, from_date=None, policy=None):
     """Finds the next official working day for the user, skipping Sundays, off-Saturdays, and recorded leaves."""
     if from_date is None:
         from_date = timezone.localdate()
+    if policy is None:
+        profile = getattr(user, 'profile', None)
+        policy = getattr(profile, 'saturday_off_policy', 'SECOND_FOURTH') if profile else 'SECOND_FOURTH'
+
+    end_date = from_date + timedelta(days=15)
+    leave_dates = set(LeaveRecord.objects.filter(
+        user=user,
+        date__gt=from_date,
+        date__lte=end_date,
+        leave_type__in=('SATURDAY_OFF', 'HOLIDAY', 'LEAVE', 'PAID', 'SICK')
+    ).values_list('date', flat=True))
+
     curr = from_date + timedelta(days=1)
     for _ in range(14):  # Look up to 2 weeks ahead
-        status = get_day_schedule_status(user, curr)
-        leave = LeaveRecord.objects.filter(user=user, date=curr).first()
-        is_leave = leave is not None and leave.leave_type in ('SATURDAY_OFF', 'HOLIDAY', 'LEAVE', 'PAID', 'SICK')
-        if not status['is_off_day'] and not is_leave:
+        status = get_day_schedule_status(user, curr, policy=policy)
+        if not status['is_off_day'] and curr not in leave_dates:
             return curr
         curr += timedelta(days=1)
     return from_date + timedelta(days=1)
 
 
-def get_remaining_working_days_in_month(user, from_date=None):
+def get_remaining_working_days_in_month(user, from_date=None, policy=None):
     """Calculates remaining official working days in the month strictly after from_date."""
     if from_date is None:
         from_date = timezone.localdate()
+    if policy is None:
+        profile = getattr(user, 'profile', None)
+        policy = getattr(profile, 'saturday_off_policy', 'SECOND_FOURTH') if profile else 'SECOND_FOURTH'
     year = from_date.year
     month = from_date.month
     total_days = calendar.monthrange(year, month)[1]
 
+    last_date = date(year, month, total_days)
+    if from_date >= last_date:
+        return 0
+
+    leave_dates = set(LeaveRecord.objects.filter(
+        user=user,
+        date__gt=from_date,
+        date__lte=last_date,
+        leave_type__in=('SATURDAY_OFF', 'HOLIDAY', 'LEAVE', 'PAID', 'SICK')
+    ).values_list('date', flat=True))
+
     count = 0
     for day in range(from_date.day + 1, total_days + 1):
         d = date(year, month, day)
-        status = get_day_schedule_status(user, d)
-        leave = LeaveRecord.objects.filter(user=user, date=d).first()
-        is_leave = leave is not None and leave.leave_type in ('SATURDAY_OFF', 'HOLIDAY', 'LEAVE', 'PAID', 'SICK')
-        if not status['is_off_day'] and not is_leave:
+        status = get_day_schedule_status(user, d, policy=policy)
+        if not status['is_off_day'] and d not in leave_dates:
             count += 1
     return count
 
