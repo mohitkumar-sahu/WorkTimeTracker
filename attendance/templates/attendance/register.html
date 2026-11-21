@@ -2,9 +2,14 @@
 
 {% block title %}Sign Up - WorkTime Tracker{% endblock %}
 
+{% block extra_head %}
+<!-- Google reCAPTCHA v2 API -->
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center py-4">
-    <div class="col-md-6 col-lg-4">
+    <div class="col-md-6 col-lg-5">
         <div class="card shadow-sm p-4 border-0">
             <div class="text-center mb-4">
                 <div class="stat-icon bg-primary bg-opacity-10 text-primary mx-auto mb-2" style="width: 56px; height: 56px;">
@@ -49,11 +54,24 @@
                     {% endif %}
                 </div>
 
-                <div class="mb-4">
+                <div class="mb-3">
                     <label class="form-label fw-semibold">Confirm Password</label>
                     {{ form.password_confirm }}
                     {% if form.password_confirm.errors %}
                         <div class="text-danger small mt-1">{{ form.password_confirm.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- GOOGLE RECAPTCHA WIDGET -->
+                <div class="mb-4">
+                    <label class="form-label fw-semibold small text-muted text-uppercase d-block text-center">Security Verification</label>
+                    <div class="d-flex justify-content-center">
+                        <div class="g-recaptcha" data-sitekey="{{ recaptcha_site_key }}"></div>
+                    </div>
+                    {% if recaptcha_error %}
+                        <div class="text-danger small mt-2 fw-semibold text-center">
+                            <i class="bi bi-shield-exclamation me-1"></i> {{ recaptcha_error }}
+                        </div>
                     {% endif %}
                 </div>
 

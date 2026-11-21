@@ -544,3 +544,45 @@ class AttendanceCalculationTests(TestCase):
         self.assertContains(res, "markDateRangeLeaveModal")
         self.assertContains(res, "From Date")
         self.assertContains(res, "To Date")
+
+    def test_registration_requires_recaptcha(self):
+        # Submitting registration without reCAPTCHA fails
+        res = self.client.post('/register/', {
+            'username': 'newuser1',
+            'email': 'newuser1@example.com',
+            'password': 'SecurePassword123!',
+            'password_confirm': 'SecurePassword123!',
+            'g-recaptcha-response': '',
+        })
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Please complete the &#x27;I&#x27;m not a robot&#x27; reCAPTCHA verification.")
+        self.assertFalse(User.objects.filter(username='newuser1').exists())
+
+    def test_registration_with_valid_recaptcha(self):
+        # Submitting registration with valid reCAPTCHA token succeeds
+        res = self.client.post('/register/', {
+            'username': 'newuser2',
+            'email': 'newuser2@example.com',
+            'password': 'SecurePassword123!',
+            'password_confirm': 'SecurePassword123!',
+            'g-recaptcha-response': 'PASSED_TEST_TOKEN',
+        })
+        self.assertEqual(res.status_code, 302)
+        self.assertTrue(User.objects.filter(username='newuser2').exists())
+        # Session cookie expiry is set to 600 seconds (10 minutes)
+        self.assertEqual(self.client.session.get_expiry_age(), 600)
+
+    def test_login_session_expiry_10_minutes(self):
+        # Logging in sets session expiry to 600s (10 minutes)
+        res = self.client.post('/login/', {
+            'username': 'testuser',
+            'password': 'password123',
+        })
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(self.client.session.get_expiry_age(), 600)
+
+    def test_logout_with_timeout_shows_auto_logout_message(self):
+        # Trigger timeout auto-logout
+        res = self.client.get('/logout/?timeout=1', follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "10-Min Session Timeout")
