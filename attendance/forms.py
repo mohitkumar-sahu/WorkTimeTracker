@@ -27,7 +27,7 @@ def verify_recaptcha(response_token, remote_ip=None):
     secret_key = (
         getattr(settings, 'RECAPTCHA_PRIVATE_KEY', None)
         or getattr(settings, 'RECAPTCHA_SECRET_KEY', None)
-        or '6LcdCTwsAAAAAFMxY1wWEyDKHyvh3h-DU_v3dLF8'
+        or '6LcftywuAAAAAD-Um89CNQquq4STWtFIDFunt7QV'
     )
 
     data = urllib.parse.urlencode({
@@ -61,7 +61,7 @@ class ReCaptchaWidget(forms.Widget):
         site_key = (
             getattr(settings, 'RECAPTCHA_PUBLIC_KEY', None)
             or getattr(settings, 'RECAPTCHA_SITE_KEY', None)
-            or '6LcdCTwsAAAAAJz2FCEUS6xJcmcSqKTcYkftyG8P'
+            or '6LcftywuAAAAADhm6T1T3sUemmpViTYX6aftCXt8'
         )
         html = f'<div class="g-recaptcha" data-sitekey="{site_key}"></div>'
         return mark_safe(html)

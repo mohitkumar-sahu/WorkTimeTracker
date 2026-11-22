@@ -723,7 +723,7 @@ def register_view(request):
     recaptcha_site_key = (
         getattr(settings, 'RECAPTCHA_PUBLIC_KEY', None)
         or getattr(settings, 'RECAPTCHA_SITE_KEY', None)
-        or '6LcdCTwsAAAAAJz2FCEUS6xJcmcSqKTcYkftyG8P'
+        or '6LcftywuAAAAADhm6T1T3sUemmpViTYX6aftCXt8'
     )
     recaptcha_error = None
     dev_otp_display = None
