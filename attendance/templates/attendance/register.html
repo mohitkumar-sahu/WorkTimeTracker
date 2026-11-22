@@ -141,9 +141,13 @@
                 <div class="mb-4">
                     <label class="form-label fw-semibold small text-muted text-uppercase d-block text-center">Security Verification</label>
                     <div class="d-flex justify-content-center">
-                        <div class="g-recaptcha" data-sitekey="{{ recaptcha_site_key }}"></div>
+                        {{ form2.captcha }}
                     </div>
-                    {% if recaptcha_error %}
+                    {% if form.captcha.errors or form2.captcha.errors %}
+                        <div class="text-danger small mt-2 fw-semibold text-center">
+                            <i class="bi bi-shield-exclamation me-1"></i> {{ form.captcha.errors.0|default:form2.captcha.errors.0 }}
+                        </div>
+                    {% elif recaptcha_error %}
                         <div class="text-danger small mt-2 fw-semibold text-center">
                             <i class="bi bi-shield-exclamation me-1"></i> {{ recaptcha_error }}
                         </div>

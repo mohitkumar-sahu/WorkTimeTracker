@@ -18,7 +18,10 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .models import AttendanceRecord, LeaveRecord, UserProfile
-from .forms import AttendanceForm, LeaveForm, UserProfileForm, UserRegistrationForm
+from .forms import (
+    AttendanceForm, LeaveForm, UserProfileForm,
+    UserRegistrationForm, CaptchaForm, verify_recaptcha
+)
 from .services import (
     calculate_weekly_summary,
     calculate_monthly_summary,
@@ -603,7 +606,7 @@ def leave_delete(request, pk):
 
 @login_required
 def profile_settings(request):
-    profile = request.user.profile
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
     password_form = PasswordChangeForm(user=request.user)
     form = UserProfileForm(instance=profile)
 
@@ -651,43 +654,6 @@ def profile_settings(request):
         'user_obj': request.user,
     }
     return render(request, 'attendance/profile.html', context)
-
-
-def verify_recaptcha(response_token, remote_ip=None):
-    """
-    Verifies a Google reCAPTCHA v2 token with Google's siteverify API.
-    Returns True if valid human verification, False otherwise.
-    """
-    if not response_token:
-        return False
-
-    # In automated testing environments or test tokens, allow verification
-    if response_token in ('PASSED_TEST_TOKEN', 'test_valid_token'):
-        return True
-
-    secret_key = getattr(settings, 'RECAPTCHA_SECRET_KEY', '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe')
-
-    data = urllib.parse.urlencode({
-        'secret': secret_key,
-        'response': response_token,
-        'remoteip': remote_ip or '',
-    }).encode('utf-8')
-
-    try:
-        req = urllib.request.Request(
-            'https://www.google.com/recaptcha/api/siteverify',
-            data=data,
-            headers={'User-Agent': 'WorkTimeTracker-Django'},
-            method='POST'
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            result = json.loads(resp.read().decode('utf-8'))
-            return result.get('success', False)
-    except Exception:
-        # Fallback for Google's official public test key in offline/dev
-        if secret_key == '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe':
-            return True
-        return False
 
 
 def send_registration_otp(email, username, otp):
@@ -754,7 +720,11 @@ def register_view(request):
     if request.user.is_authenticated:
         return redirect('dashboard')
 
-    recaptcha_site_key = getattr(settings, 'RECAPTCHA_SITE_KEY', '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI')
+    recaptcha_site_key = (
+        getattr(settings, 'RECAPTCHA_PUBLIC_KEY', None)
+        or getattr(settings, 'RECAPTCHA_SITE_KEY', None)
+        or '6LcdCTwsAAAAAJz2FCEUS6xJcmcSqKTcYkftyG8P'
+    )
     recaptcha_error = None
     dev_otp_display = None
     step = 'form'
@@ -913,6 +883,7 @@ def register_view(request):
 
     context = {
         'form': form,
+        'form2': form,  # Enables rendering {{ form2.captcha }} as well as {{ form.captcha }}
         'step': step,
         'pending_email': pending.get('email') if pending else None,
         'pending_username': pending.get('username') if pending else None,

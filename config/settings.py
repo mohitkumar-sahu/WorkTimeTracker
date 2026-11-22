@@ -78,6 +78,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+# reCAPTCHA keys
+RECAPTCHA_PUBLIC_KEY = os.environ.get("RECAPTCHA_PUBLIC_KEY", "6LcdCTwsAAAAAJz2FCEUS6xJcmcSqKTcYkftyG8P")
+RECAPTCHA_PRIVATE_KEY = os.environ.get("RECAPTCHA_PRIVATE_KEY", "6LcdCTwsAAAAAFMxY1wWEyDKHyvh3h-DU_v3dLF8")
+RECAPTCHA_SITE_KEY = os.environ.get("RECAPTCHA_SITE_KEY", RECAPTCHA_PUBLIC_KEY)
+RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", RECAPTCHA_PRIVATE_KEY)
+
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -178,10 +184,6 @@ SESSION_COOKIE_AGE = 600  # 10 minutes
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_SAVE_EVERY_REQUEST = False
 
-# Google reCAPTCHA v2 configuration
-# Default keys are Google's published test keys (always pass, perfect for localhost & test)
-RECAPTCHA_SITE_KEY = os.environ.get("RECAPTCHA_SITE_KEY", "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI")
-RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", "6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe")
 
 # Email Configuration (for Email OTP verification & notifications)
 EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
