@@ -102,6 +102,7 @@ def dashboard(request):
     context = {
         'today': today,
         'now_dt': now_dt,
+        'is_today_sunday': (today.weekday() == 6),
         'today_record': today_record,
         'today_leave': today_leave,
         'today_schedule': today_schedule,
@@ -130,6 +131,10 @@ def quick_mark_leave(request):
             leave_date = timezone.localdate()
     else:
         leave_date = timezone.localdate()
+
+    if leave_date.weekday() == 6:
+        messages.info(request, "🏖️ Sunday is already an official off day for all employees. No leave needs to be marked.")
+        return redirect('dashboard')
 
     leave_type = request.POST.get('leave_type', 'SATURDAY_OFF')
     duration = Decimal(request.POST.get('duration', '1.0'))
@@ -269,6 +274,10 @@ def quick_mark_leave_range(request):
 @require_POST
 def quick_punch_in(request):
     today = timezone.localdate()
+    if today.weekday() == 6:  # Sunday
+        messages.warning(request, "🏖️ Today is Sunday! Sunday is completely off for all employees. Attendance tracking is disabled on Sundays.")
+        return redirect('dashboard')
+
     now_time = timezone.localtime(timezone.now()).time().replace(microsecond=0)
 
     record, created = AttendanceRecord.objects.get_or_create(
@@ -298,6 +307,10 @@ def quick_punch_in(request):
 @require_POST
 def quick_punch_out(request):
     today = timezone.localdate()
+    if today.weekday() == 6:  # Sunday
+        messages.warning(request, "🏖️ Today is Sunday! Sunday is completely off for all employees.")
+        return redirect('dashboard')
+
     now_time = timezone.localtime(timezone.now()).time().replace(microsecond=0)
 
     record = AttendanceRecord.objects.filter(user=request.user, date=today).first()
@@ -508,6 +521,9 @@ def attendance_create(request):
         form = AttendanceForm(request.POST, user=request.user)
         if form.is_valid():
             record = form.save(commit=False)
+            if record.date.weekday() == 6:
+                messages.error(request, "Sunday is completely off for all employees. Attendance cannot be recorded on Sundays.")
+                return render(request, 'attendance/attendance_form.html', {'form': form, 'title': 'Log Working Hours'})
             record.user = request.user
             record.save()
             messages.success(request, f"Attendance for {record.date} saved successfully.")

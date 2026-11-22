@@ -107,12 +107,20 @@ class AttendanceForm(forms.ModelForm):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
         if not self.instance.pk and not self.initial.get('date'):
-            self.initial['date'] = timezone.localdate()
+            today = timezone.localdate()
+            # If today is Sunday, do not pre-fill Sunday (it is completely off)
+            if today.weekday() == 6:
+                self.initial['date'] = today - timezone.timedelta(days=2)  # Previous Friday
+            else:
+                self.initial['date'] = today
 
     def clean(self):
         cleaned_data = super().clean()
         date = cleaned_data.get('date')
         user = self.user
+
+        if date and date.weekday() == 6:
+            raise ValidationError("Sunday is completely off for all employees. Attendance cannot be recorded for Sundays.")
 
         if user and date:
             qs = AttendanceRecord.objects.filter(user=user, date=date)
@@ -149,6 +157,9 @@ class LeaveForm(forms.ModelForm):
         cleaned_data = super().clean()
         date = cleaned_data.get('date')
         user = self.user
+
+        if date and date.weekday() == 6:
+            raise ValidationError("Sunday is already a regular weekly off for all employees. Leave cannot be recorded on Sundays.")
 
         if user and date:
             qs = LeaveRecord.objects.filter(user=user, date=date)

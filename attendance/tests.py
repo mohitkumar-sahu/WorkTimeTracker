@@ -611,3 +611,37 @@ class AttendanceCalculationTests(TestCase):
         res = self.client.get('/logout/?timeout=1', follow=True)
         self.assertEqual(res.status_code, 200)
         self.assertContains(res, "10-Min Session Timeout")
+
+    def test_attendance_form_blocks_sunday(self):
+        # Nov 1, 2026 is Sunday
+        from .forms import AttendanceForm
+        form = AttendanceForm(data={
+            'date': '2026-11-01',
+            'login_time': '09:30',
+            'logout_time': '18:45',
+            'notes': 'Attempt to log Sunday'
+        }, user=self.user)
+        self.assertFalse(form.is_valid())
+        self.assertIn("Sunday is completely off for all employees", str(form.errors))
+
+    def test_sunday_leave_form_blocks_sunday(self):
+        # Nov 1, 2026 is Sunday
+        from .forms import LeaveForm
+        form = LeaveForm(data={
+            'date': '2026-11-01',
+            'leave_type': 'LEAVE',
+            'duration': '1.0',
+            'reason': 'Sunday Leave'
+        }, user=self.user)
+        self.assertFalse(form.is_valid())
+        self.assertIn("Sunday is already a regular weekly off", str(form.errors))
+
+    def test_sunday_punch_in_blocked_when_sunday(self):
+        from unittest.mock import patch
+        self.client.login(username='testuser', password='password123')
+        # Mock localdate to Sunday Nov 1, 2026
+        with patch('django.utils.timezone.localdate', return_value=date(2026, 11, 1)):
+            res = self.client.post('/punch-in/', follow=True)
+            self.assertEqual(res.status_code, 200)
+            self.assertContains(res, "Sunday is completely off for all employees")
+            self.assertFalse(AttendanceRecord.objects.filter(user=self.user, date=date(2026, 11, 1)).exists())

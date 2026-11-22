@@ -32,7 +32,11 @@
                     <span class="badge rounded-pill {% if today_schedule.is_off_day %}bg-info text-dark{% else %}bg-primary text-white{% endif %} px-3 py-1">
                         <i class="bi bi-building me-1"></i> {{ today_schedule.label }}
                     </span>
-                    {% if today_leave %}
+                    {% if is_today_sunday %}
+                        <span class="badge rounded-pill bg-warning text-dark px-3 py-1">
+                            <i class="bi bi-sun-fill me-1"></i> Weekly Off (Sunday)
+                        </span>
+                    {% elif today_leave %}
                         <span class="badge rounded-pill bg-warning text-dark px-3 py-1">
                             <i class="bi bi-beach me-1"></i> On Leave ({{ today_leave.get_leave_type_display }})
                         </span>
@@ -47,7 +51,10 @@
                     {% endif %}
                 </div>
 
-                {% if today_leave %}
+                {% if is_today_sunday %}
+                    <h3 class="fw-bold mb-1 text-white">Sunday — Weekly Off 🏖️</h3>
+                    <p class="text-light opacity-75 mb-0">Sunday is completely off for all employees. No attendance tracking is required. Enjoy your weekend!</p>
+                {% elif today_leave %}
                     <h3 class="fw-bold mb-1">You are marked on leave today.</h3>
                     <p class="text-light opacity-75 mb-0">Reason: {{ today_leave.reason|default:"No reason specified" }} (Duration: {{ today_leave.duration }} day). Leaves do not count against your daily average calculation.</p>
                 {% elif not today_record %}
@@ -145,7 +152,15 @@
 
             <!-- ACTION BUTTONS -->
             <div class="col-lg-5 text-lg-end hero-action-buttons">
-                {% if not today_leave %}
+                {% if is_today_sunday %}
+                    <div class="d-inline-flex flex-column align-items-lg-end align-items-center gap-2">
+                        <div class="d-inline-flex align-items-center gap-2 px-4 py-3 rounded-pill shadow" style="background: rgba(255, 255, 255, 0.18); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.35);">
+                            <i class="bi bi-cup-hot-fill text-warning fs-4"></i>
+                            <span class="text-white fw-bold fs-6">Sunday Off &bull; Have a Relaxing Weekend!</span>
+                        </div>
+                        <span class="text-white-50 small">Attendance options are completely disabled on Sundays.</span>
+                    </div>
+                {% elif not today_leave %}
                     {% if not today_record %}
                         <div class="d-flex flex-column flex-sm-row justify-content-lg-end gap-2">
                             <form method="post" action="{% url 'quick_punch_in' %}" class="d-inline">
