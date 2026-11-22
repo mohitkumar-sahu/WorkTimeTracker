@@ -558,18 +558,43 @@ class AttendanceCalculationTests(TestCase):
         self.assertContains(res, "Please complete the &#x27;I&#x27;m not a robot&#x27; reCAPTCHA verification.")
         self.assertFalse(User.objects.filter(username='newuser1').exists())
 
-    def test_registration_with_valid_recaptcha(self):
-        # Submitting registration with valid reCAPTCHA token succeeds
+    def test_registration_with_otp_verification(self):
+        # Step 1: Submit registration details with valid reCAPTCHA
         res = self.client.post('/register/', {
             'username': 'newuser2',
             'email': 'newuser2@example.com',
             'password': 'SecurePassword123!',
             'password_confirm': 'SecurePassword123!',
             'g-recaptcha-response': 'PASSED_TEST_TOKEN',
+            'action': 'submit_form',
         })
-        self.assertEqual(res.status_code, 302)
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Verify Your Email")
+        self.assertContains(res, "newuser2@example.com")
+        self.assertFalse(User.objects.filter(username='newuser2').exists())
+
+        # Grab generated OTP from session
+        pending = self.client.session.get('reg_pending')
+        self.assertIsNotNone(pending)
+        otp = pending['otp']
+        self.assertEqual(len(otp), 6)
+
+        # Step 2a: Submitting incorrect OTP fails
+        res_fail = self.client.post('/register/', {
+            'action': 'verify_otp',
+            'otp': '000000' if otp != '000000' else '111111',
+        })
+        self.assertEqual(res_fail.status_code, 200)
+        self.assertContains(res_fail, "Invalid verification code")
+        self.assertFalse(User.objects.filter(username='newuser2').exists())
+
+        # Step 2b: Submitting correct OTP creates user and logs in
+        res_ok = self.client.post('/register/', {
+            'action': 'verify_otp',
+            'otp': otp,
+        })
+        self.assertEqual(res_ok.status_code, 302)
         self.assertTrue(User.objects.filter(username='newuser2').exists())
-        # Session cookie expiry is set to 600 seconds (10 minutes)
         self.assertEqual(self.client.session.get_expiry_age(), 600)
 
     def test_login_session_expiry_10_minutes(self):

@@ -1,5 +1,6 @@
 import csv
 import json
+import random
 import calendar
 import urllib.request
 import urllib.parse
@@ -689,41 +690,235 @@ def verify_recaptcha(response_token, remote_ip=None):
         return False
 
 
+def send_registration_otp(email, username, otp):
+    """
+    Sends the 6-digit OTP code to the user's email using Django's email framework.
+    Returns (success: bool, dev_code: str or None, error: str or None)
+    """
+    subject = f"Your WorkTime Tracker Verification Code: {otp}"
+    plain_text = f"""Hi {username},
+
+Thank you for registering on WorkTime Tracker!
+
+Your 6-digit email verification code is:
+
+    {otp}
+
+This code will expire in 10 minutes.
+If you did not request this verification, you can safely ignore this email.
+
+Best regards,
+WorkTime Tracker Team
+"""
+    html_text = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 28px; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0;">
+        <div style="text-align: center; margin-bottom: 24px;">
+            <h2 style="color: #4f46e5; margin: 0; font-size: 22px; font-weight: 800;">⏱️ WorkTime Tracker</h2>
+            <p style="color: #64748b; font-size: 13px; margin-top: 4px;">Email Verification Code</p>
+        </div>
+        <div style="background: #f8fafc; border-radius: 8px; padding: 24px; text-align: center; margin-bottom: 20px;">
+            <p style="color: #334155; font-size: 14px; margin: 0 0 12px;">Hello <strong>{username}</strong>, enter this code on the registration page to verify your email:</p>
+            <div style="font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #4f46e5; padding: 8px 0; font-family: monospace;">
+                {otp}
+            </div>
+            <p style="color: #94a3b8; font-size: 12px; margin: 8px 0 0;">⏱️ Code is valid for <strong>10 minutes</strong>.</p>
+        </div>
+        <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 0;">
+            If you did not request this verification, no action is needed and you can safely ignore this email.
+        </p>
+    </div>
+    """
+
+    # If SMTP is not yet configured, log to console and provide fallback
+    if not getattr(settings, 'EMAIL_HOST_USER', None):
+        print(f"[OTP DEV NOTIFICATION] OTP for {email} ({username}): {otp}")
+        return True, otp, None
+
+    try:
+        from django.core.mail import send_mail
+        send_mail(
+            subject=subject,
+            message=plain_text,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'WorkTime Tracker <noreply@worktimetracker.app>'),
+            recipient_list=[email],
+            html_message=html_text,
+            fail_silently=False,
+        )
+        return True, None, None
+    except Exception as e:
+        print(f"SMTP delivery error to {email}: {e}")
+        return False, otp, str(e)
+
+
 def register_view(request):
     if request.user.is_authenticated:
         return redirect('dashboard')
 
     recaptcha_site_key = getattr(settings, 'RECAPTCHA_SITE_KEY', '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI')
     recaptcha_error = None
+    dev_otp_display = None
+    step = 'form'
+
+    pending = request.session.get('reg_pending')
+    if pending:
+        step = 'verify_otp'
 
     if request.method == 'POST':
-        form = UserRegistrationForm(request.POST)
-        recaptcha_token = request.POST.get('g-recaptcha-response', '').strip()
-        client_ip = request.META.get('REMOTE_ADDR')
-        is_human = verify_recaptcha(recaptcha_token, client_ip)
+        action = request.POST.get('action', 'submit_form')
 
-        if not is_human:
-            recaptcha_error = "Please complete the 'I'm not a robot' reCAPTCHA verification."
-            messages.error(request, recaptcha_error)
-        elif form.is_valid():
-            user = User.objects.create_user(
-                username=form.cleaned_data['username'],
-                email=form.cleaned_data['email'],
-                password=form.cleaned_data['password']
-            )
-            login(request, user)
-            # Enforce 10-minute session timeout
-            request.session.set_expiry(600)
-            request.session['login_timestamp'] = timezone.now().timestamp()
-            messages.success(request, f"Welcome {user.username}! Your worktime tracker is ready.")
-            return redirect('dashboard')
+        # 1. User wants to change email or cancel pending verification
+        if action == 'cancel_verification':
+            if 'reg_pending' in request.session:
+                del request.session['reg_pending']
+                request.session.modified = True
+            messages.info(request, "Registration reset. You can edit your details below.")
+            return redirect('register')
+
+        # 2. User requests a new OTP code
+        elif action == 'resend_otp':
+            if not pending:
+                messages.error(request, "Session expired. Please fill the registration form again.")
+                return redirect('register')
+
+            now_ts = timezone.now().timestamp()
+            last_sent = pending.get('otp_sent_at', 0)
+            if now_ts - last_sent < 30:
+                wait_sec = int(30 - (now_ts - last_sent))
+                messages.warning(request, f"Please wait {wait_sec}s before requesting another verification code.")
+            else:
+                new_otp = f"{random.randint(100000, 999999)}"
+                pending['otp'] = new_otp
+                pending['otp_sent_at'] = now_ts
+                pending['attempts'] = 0
+                request.session['reg_pending'] = pending
+                request.session.modified = True
+
+                success, dev_code, err = send_registration_otp(pending['email'], pending['username'], new_otp)
+                if success:
+                    messages.success(request, f"A new verification code has been sent to {pending['email']}!")
+                else:
+                    messages.warning(request, f"Notice: {err or 'Could not deliver email'}")
+                if dev_code:
+                    dev_otp_display = dev_code
+
+            return render(request, 'attendance/register.html', {
+                'step': 'verify_otp',
+                'pending_email': pending['email'],
+                'pending_username': pending['username'],
+                'dev_otp_display': dev_otp_display,
+            })
+
+        # 3. User submits the 6-digit OTP code to complete registration
+        elif action == 'verify_otp':
+            if not pending:
+                messages.error(request, "Registration session expired. Please register again.")
+                return redirect('register')
+
+            user_otp = request.POST.get('otp', '').strip()
+            now_ts = timezone.now().timestamp()
+            otp_sent_at = pending.get('otp_sent_at', 0)
+
+            # Check 10-minute expiry (600s)
+            if now_ts - otp_sent_at > 600:
+                del request.session['reg_pending']
+                request.session.modified = True
+                messages.error(request, "Verification code has expired (valid for 10 minutes). Please register again.")
+                return redirect('register')
+
+            # Check maximum attempt limit (5 attempts)
+            attempts = pending.get('attempts', 0) + 1
+            pending['attempts'] = attempts
+            request.session['reg_pending'] = pending
+            request.session.modified = True
+
+            if attempts > 5:
+                del request.session['reg_pending']
+                request.session.modified = True
+                messages.error(request, "Too many incorrect attempts. For security, please register again.")
+                return redirect('register')
+
+            # Verify OTP
+            if user_otp == str(pending.get('otp')):
+                try:
+                    user = User.objects.create_user(
+                        username=pending['username'],
+                        email=pending['email'],
+                        password=pending['password']
+                    )
+                    del request.session['reg_pending']
+                    request.session.modified = True
+
+                    login(request, user)
+                    request.session.set_expiry(600)
+                    request.session['login_timestamp'] = timezone.now().timestamp()
+
+                    messages.success(request, f"🎉 Email verified! Welcome to WorkTime Tracker, {user.username}!")
+                    return redirect('dashboard')
+                except Exception as e:
+                    messages.error(request, f"Could not create account: {e}")
+                    return redirect('register')
+            else:
+                remaining = 5 - attempts
+                messages.error(request, f"❌ Invalid verification code. {remaining} attempt(s) remaining.")
+                return render(request, 'attendance/register.html', {
+                    'step': 'verify_otp',
+                    'pending_email': pending['email'],
+                    'pending_username': pending['username'],
+                    'dev_otp_display': dev_otp_display,
+                })
+
+        # 4. Initial registration form submission (Step 1)
+        else:
+            form = UserRegistrationForm(request.POST)
+            recaptcha_token = request.POST.get('g-recaptcha-response', '').strip()
+            client_ip = request.META.get('REMOTE_ADDR')
+            is_human = verify_recaptcha(recaptcha_token, client_ip)
+
+            if not is_human:
+                recaptcha_error = "Please complete the 'I'm not a robot' reCAPTCHA verification."
+                messages.error(request, recaptcha_error)
+            elif form.is_valid():
+                username = form.cleaned_data['username']
+                email = form.cleaned_data['email']
+                password = form.cleaned_data['password']
+
+                otp = f"{random.randint(100000, 999999)}"
+                now_ts = timezone.now().timestamp()
+
+                request.session['reg_pending'] = {
+                    'username': username,
+                    'email': email,
+                    'password': password,
+                    'otp': otp,
+                    'otp_sent_at': now_ts,
+                    'attempts': 0,
+                }
+                request.session.modified = True
+
+                success, dev_code, err = send_registration_otp(email, username, otp)
+                if dev_code:
+                    dev_otp_display = dev_code
+
+                messages.success(request, f"Verification code sent to {email}!")
+                return render(request, 'attendance/register.html', {
+                    'step': 'verify_otp',
+                    'pending_email': email,
+                    'pending_username': username,
+                    'dev_otp_display': dev_otp_display,
+                })
+
     else:
+        # GET request
         form = UserRegistrationForm()
 
     context = {
         'form': form,
+        'step': step,
+        'pending_email': pending.get('email') if pending else None,
+        'pending_username': pending.get('username') if pending else None,
         'recaptcha_site_key': recaptcha_site_key,
         'recaptcha_error': recaptcha_error,
+        'dev_otp_display': dev_otp_display,
     }
     return render(request, 'attendance/register.html', context)
 

@@ -100,9 +100,17 @@ class UserProfileForm(forms.ModelForm):
 
 
 class UserRegistrationForm(forms.ModelForm):
-    password = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'form-control'}))
+    email = forms.EmailField(
+        required=True,
+        widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'name@example.com'}),
+        help_text="A 6-digit verification code will be sent to this email."
+    )
+    password = forms.CharField(
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Create strong password'}),
+        min_length=6
+    )
     password_confirm = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'form-control'}),
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Confirm password'}),
         label="Confirm Password"
     )
 
@@ -110,9 +118,24 @@ class UserRegistrationForm(forms.ModelForm):
         model = User
         fields = ['username', 'email']
         widgets = {
-            'username': forms.TextInput(attrs={'class': 'form-control'}),
-            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'username': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Choose username'}),
         }
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username', '').strip()
+        if not username:
+            raise forms.ValidationError("Username cannot be empty.")
+        if User.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError(f"Username '{username}' is already taken. Please choose another.")
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email', '').strip().lower()
+        if not email:
+            raise forms.ValidationError("Email address is required for verification.")
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError("An account with this email address already exists. Please log in instead.")
+        return email
 
     def clean(self):
         cleaned_data = super().clean()

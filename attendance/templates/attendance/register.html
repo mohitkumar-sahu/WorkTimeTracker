@@ -1,26 +1,98 @@
 {% extends 'attendance/base.html' %}
 
-{% block title %}Sign Up - WorkTime Tracker{% endblock %}
+{% block title %}{% if step == 'verify_otp' %}Verify Email - WorkTime Tracker{% else %}Sign Up - WorkTime Tracker{% endif %}{% endblock %}
 
 {% block extra_head %}
+{% if step != 'verify_otp' %}
 <!-- Google reCAPTCHA v2 API -->
 <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+{% endif %}
 {% endblock %}
 
 {% block content %}
 <div class="row justify-content-center py-4">
     <div class="col-md-6 col-lg-5">
         <div class="card shadow-sm p-4 border-0">
+
+            {% if step == 'verify_otp' %}
+            <!-- STEP 2: EMAIL OTP VERIFICATION -->
+            <div class="text-center mb-4">
+                <div class="stat-icon bg-success bg-opacity-10 text-success mx-auto mb-2" style="width: 56px; height: 56px;">
+                    <i class="bi bi-envelope-check fs-3"></i>
+                </div>
+                <h3 class="fw-bold mb-1">Verify Your Email</h3>
+                <p class="text-muted small mb-0">We sent a 6-digit verification code to</p>
+                <div class="fw-bold text-dark mt-1">{{ pending_email }}</div>
+            </div>
+
+            {% if dev_otp_display %}
+            <div class="alert alert-info small p-3 mb-3 border-info rounded-3 text-center">
+                <div class="fw-semibold"><i class="bi bi-info-circle me-1"></i> Demo / Verification Code:</div>
+                <div class="fs-4 fw-bold font-monospace text-primary my-1 tracking-widest">{{ dev_otp_display }}</div>
+                <div class="text-muted" style="font-size: 0.75rem;">(To send live emails, configure EMAIL_HOST_USER & EMAIL_HOST_PASSWORD in Vercel)</div>
+            </div>
+            {% endif %}
+
+            <form method="post" novalidate class="mb-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="verify_otp">
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small text-muted text-uppercase d-block text-center">Enter 6-Digit Code</label>
+                    <input type="text" 
+                           name="otp" 
+                           id="otpInput" 
+                           class="form-control form-control-lg text-center fw-bold fs-2 font-monospace" 
+                           maxlength="6" 
+                           pattern="[0-9]{6}" 
+                           inputmode="numeric" 
+                           placeholder="000000" 
+                           style="letter-spacing: 8px;" 
+                           required 
+                           autofocus>
+                    <div class="text-muted small text-center mt-2">
+                        <i class="bi bi-clock me-1"></i> Code expires in <strong>10 minutes</strong>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary-custom w-100 py-2 mb-2">
+                    <i class="bi bi-check-circle me-1"></i> Verify & Complete Registration
+                </button>
+            </form>
+
+            <div class="d-flex justify-content-between align-items-center border-top pt-3 mt-2">
+                <!-- Resend Code Form -->
+                <form method="post" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="resend_otp">
+                    <button type="submit" class="btn btn-sm btn-link text-decoration-none text-muted p-0" id="resendBtn">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Resend Code
+                    </button>
+                </form>
+
+                <!-- Change Email / Cancel Form -->
+                <form method="post" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="cancel_verification">
+                    <button type="submit" class="btn btn-sm btn-link text-decoration-none text-danger p-0">
+                        <i class="bi bi-pencil me-1"></i> Change Email
+                    </button>
+                </form>
+            </div>
+
+            {% else %}
+            <!-- STEP 1: REGISTRATION CREDENTIALS FORM -->
             <div class="text-center mb-4">
                 <div class="stat-icon bg-primary bg-opacity-10 text-primary mx-auto mb-2" style="width: 56px; height: 56px;">
                     <i class="bi bi-person-plus fs-3"></i>
                 </div>
                 <h3 class="fw-bold mb-1">Create Account</h3>
-                <p class="text-muted small">Start tracking your 9h 15m shifts and prevent salary deductions</p>
+                <p class="text-muted small">Start tracking your shifts and prevent salary deductions</p>
             </div>
 
             <form method="post" novalidate>
                 {% csrf_token %}
+                <input type="hidden" name="action" value="submit_form">
 
                 {% if form.non_field_errors %}
                     <div class="alert alert-danger p-2 small">
@@ -39,8 +111,11 @@
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label fw-semibold">Email (Optional)</label>
+                    <label class="form-label fw-semibold">Email Address</label>
                     {{ form.email }}
+                    <small class="text-muted d-block mt-1">
+                        <i class="bi bi-shield-lock text-primary me-1"></i> We'll send a 6-digit OTP to verify your email.
+                    </small>
                     {% if form.email.errors %}
                         <div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>
                     {% endif %}
@@ -76,13 +151,15 @@
                 </div>
 
                 <button type="submit" class="btn btn-primary-custom w-100 py-2 mb-3">
-                    <i class="bi bi-check-circle me-1"></i> Register & Start Tracking
+                    <i class="bi bi-shield-check me-1"></i> Verify Email & Register
                 </button>
             </form>
 
             <div class="text-center text-muted small mt-2">
                 Already have an account? <a href="{% url 'login' %}" class="fw-semibold text-decoration-none">Log in here</a>
             </div>
+            {% endif %}
+
         </div>
     </div>
 </div>
