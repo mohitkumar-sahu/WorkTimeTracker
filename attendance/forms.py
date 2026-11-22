@@ -13,9 +13,9 @@ from .models import AttendanceRecord, LeaveRecord, UserProfile
 logger = logging.getLogger(__name__)
 
 
-def verify_recaptcha(response_token, remote_ip=None):
+def verify_recaptcha(response_token, remote_ip=None, min_score=0.3):
     """
-    Verifies a Google reCAPTCHA v2 token with Google's siteverify API.
+    Verifies a Google reCAPTCHA v2 / v3 token with Google's siteverify API.
     Returns True if valid human verification, False otherwise.
     """
     if not response_token:
@@ -45,7 +45,12 @@ def verify_recaptcha(response_token, remote_ip=None):
         )
         with urllib.request.urlopen(req, timeout=5) as resp:
             result = json.loads(resp.read().decode('utf-8'))
-            return result.get('success', False)
+            success = result.get('success', False)
+            # For reCAPTCHA v3, also verify the bot score if returned
+            score = result.get('score')
+            if success and score is not None:
+                return score >= min_score
+            return success
     except Exception as e:
         logger.warning(f"reCAPTCHA siteverify error: {e}")
         if secret_key == '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe':
@@ -55,19 +60,14 @@ def verify_recaptcha(response_token, remote_ip=None):
 
 class ReCaptchaWidget(forms.Widget):
     """
-    Renders Google reCAPTCHA v2 checkbox widget.
+    Renders Google reCAPTCHA v3 hidden input.
     """
     def render(self, name, value, attrs=None, renderer=None):
-        site_key = (
-            getattr(settings, 'RECAPTCHA_PUBLIC_KEY', None)
-            or getattr(settings, 'RECAPTCHA_SITE_KEY', None)
-            or '6LcftywuAAAAADhm6T1T3sUemmpViTYX6aftCXt8'
-        )
-        html = f'<div class="g-recaptcha" data-sitekey="{site_key}"></div>'
-        return mark_safe(html)
+        val = value or ''
+        return mark_safe(f'<input type="hidden" name="g-recaptcha-response" id="g-recaptcha-response" value="{val}">')
 
     def value_from_datadict(self, data, files, name):
-        # Google reCAPTCHA v2 posts the response token in 'g-recaptcha-response'
+        # Google reCAPTCHA posts token via 'g-recaptcha-response' or form field name
         return data.get('g-recaptcha-response', '') or data.get(name, '')
 
 
@@ -85,7 +85,7 @@ class ReCaptchaField(forms.Field):
             raise ValidationError("Please complete the 'I'm not a robot' reCAPTCHA verification.")
 
         if not verify_recaptcha(value):
-            raise ValidationError("reCAPTCHA verification failed. Please try ticking the checkbox again.")
+            raise ValidationError("Security verification failed. Please try submitting again.")
 
 
 class CaptchaForm(forms.Form):

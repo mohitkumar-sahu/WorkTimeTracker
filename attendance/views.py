@@ -845,7 +845,10 @@ def register_view(request):
             is_human = verify_recaptcha(recaptcha_token, client_ip)
 
             if not is_human:
-                recaptcha_error = "Please complete the 'I'm not a robot' reCAPTCHA verification."
+                if not recaptcha_token:
+                    recaptcha_error = "Please complete the 'I'm not a robot' reCAPTCHA verification."
+                else:
+                    recaptcha_error = "Security verification failed. Please try submitting again."
                 messages.error(request, recaptcha_error)
             elif form.is_valid():
                 username = form.cleaned_data['username']

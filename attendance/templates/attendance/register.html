@@ -4,8 +4,8 @@
 
 {% block extra_head %}
 {% if step != 'verify_otp' %}
-<!-- Google reCAPTCHA v2 API -->
-<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+<!-- Google reCAPTCHA v3 API -->
+<script src="https://www.google.com/recaptcha/api.js?render={{ recaptcha_site_key }}"></script>
 {% endif %}
 {% endblock %}
 
@@ -90,7 +90,7 @@
                 <p class="text-muted small">Start tracking your shifts and prevent salary deductions</p>
             </div>
 
-            <form method="post" novalidate>
+            <form method="post" novalidate id="registerForm">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="submit_form">
 
@@ -137,27 +137,67 @@
                     {% endif %}
                 </div>
 
-                <!-- GOOGLE RECAPTCHA WIDGET -->
-                <div class="mb-4">
-                    <label class="form-label fw-semibold small text-muted text-uppercase d-block text-center">Security Verification</label>
-                    <div class="d-flex justify-content-center">
-                        {{ form2.captcha }}
-                    </div>
-                    {% if form.captcha.errors or form2.captcha.errors %}
-                        <div class="text-danger small mt-2 fw-semibold text-center">
-                            <i class="bi bi-shield-exclamation me-1"></i> {{ form.captcha.errors.0|default:form2.captcha.errors.0 }}
-                        </div>
-                    {% elif recaptcha_error %}
-                        <div class="text-danger small mt-2 fw-semibold text-center">
-                            <i class="bi bi-shield-exclamation me-1"></i> {{ recaptcha_error }}
-                        </div>
-                    {% endif %}
+                <!-- GOOGLE RECAPTCHA v3 (INVISIBLE) -->
+                {{ form2.captcha }}
+
+                <div class="d-flex align-items-center justify-content-center gap-2 text-muted small my-3 py-2 px-3 bg-light rounded-3 border">
+                    <i class="bi bi-shield-check text-success fs-5"></i>
+                    <span>Protected by <strong>Google reCAPTCHA v3</strong> (Invisible)</span>
                 </div>
 
-                <button type="submit" class="btn btn-primary-custom w-100 py-2 mb-3">
+                {% if form.captcha.errors or form2.captcha.errors or recaptcha_error %}
+                    <div class="text-danger small mb-3 fw-semibold text-center">
+                        <i class="bi bi-shield-exclamation me-1"></i> {{ recaptcha_error|default:form.captcha.errors.0|default:form2.captcha.errors.0 }}
+                    </div>
+                {% endif %}
+
+                <button type="submit" id="submitBtn" class="btn btn-primary-custom w-100 py-2 mb-3">
                     <i class="bi bi-shield-check me-1"></i> Verify Email & Register
                 </button>
             </form>
+
+            <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                var form = document.getElementById("registerForm");
+                var tokenInput = document.getElementById("g-recaptcha-response");
+                var siteKey = "{{ recaptcha_site_key }}";
+
+                function getRecaptchaToken(callback) {
+                    if (typeof grecaptcha !== "undefined" && siteKey) {
+                        grecaptcha.ready(function() {
+                            grecaptcha.execute(siteKey, {action: "register"}).then(function(token) {
+                                if (tokenInput) tokenInput.value = token;
+                                if (callback) callback(token);
+                            }).catch(function(err) {
+                                console.warn("reCAPTCHA v3 notice:", err);
+                                if (callback) callback(null);
+                            });
+                        });
+                    } else {
+                        if (callback) callback(null);
+                    }
+                }
+
+                // Pre-fetch token in the background so form submit is instantaneous
+                getRecaptchaToken();
+
+                if (form) {
+                    form.addEventListener("submit", function(e) {
+                        if (tokenInput && !tokenInput.value && typeof grecaptcha !== "undefined" && siteKey) {
+                            e.preventDefault();
+                            var btn = document.getElementById("submitBtn");
+                            if (btn) {
+                                btn.disabled = true;
+                                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Verifying security...';
+                            }
+                            getRecaptchaToken(function(token) {
+                                form.submit();
+                            });
+                        }
+                    });
+                }
+            });
+            </script>
 
             <div class="text-center text-muted small mt-2">
                 Already have an account? <a href="{% url 'login' %}" class="fw-semibold text-decoration-none">Log in here</a>
