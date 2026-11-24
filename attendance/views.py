@@ -848,8 +848,6 @@ def register_view(request):
                     request.session.modified = True
 
                     login(request, user)
-                    request.session.set_expiry(600)
-                    request.session['login_timestamp'] = timezone.now().timestamp()
 
                     messages.success(request, f"🎉 Email verified! Welcome to WorkTime Tracker, {user.username}!")
                     return redirect('dashboard')
@@ -956,8 +954,6 @@ def login_view(request):
     if request.user.is_authenticated:
         return redirect('dashboard')
 
-    timeout_notice = request.GET.get('timeout') == '1'
-
     if request.method == 'POST':
         try:
             form = AuthenticationForm(request, data=request.POST)
@@ -978,27 +974,17 @@ def login_view(request):
             user = form.get_user()
             login(request, user)
 
-            # Strict 10-minute session auto logout requirement
-            # Session expires exactly 10 minutes (600 seconds) after login
-            request.session.set_expiry(600)
-            request.session['login_timestamp'] = timezone.now().timestamp()
-
             messages.success(request, f"Welcome back, {user.username}!")
             next_url = request.GET.get('next', 'dashboard')
             return redirect(next_url)
     else:
         form = AuthenticationForm()
 
-    return render(request, 'attendance/login.html', {'form': form, 'timeout_notice': timeout_notice})
+    return render(request, 'attendance/login.html', {'form': form})
 
 
 
 def logout_view(request):
-    is_timeout = request.GET.get('timeout') == '1'
     logout(request)
-    if is_timeout:
-        messages.warning(request, "⏰ You have been automatically logged out after 10 minutes of session duration.")
-        return redirect('/login/?timeout=1')
-    else:
-        messages.info(request, "You have been logged out.")
-        return redirect('login')
+    messages.info(request, "You have been logged out.")
+    return redirect('login')

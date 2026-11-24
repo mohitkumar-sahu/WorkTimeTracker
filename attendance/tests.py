@@ -595,22 +595,24 @@ class AttendanceCalculationTests(TestCase):
         })
         self.assertEqual(res_ok.status_code, 302)
         self.assertTrue(User.objects.filter(username='newuser2').exists())
-        self.assertEqual(self.client.session.get_expiry_age(), 600)
+        self.assertGreater(self.client.session.get_expiry_age(), 86400)
 
-    def test_login_session_expiry_10_minutes(self):
-        # Logging in sets session expiry to 600s (10 minutes)
+    def test_login_session_persistent_no_auto_logout(self):
+        # Logging in maintains persistent session (no 10-minute timeout)
         res = self.client.post('/login/', {
             'username': 'testuser',
             'password': 'password123',
         })
         self.assertEqual(res.status_code, 302)
-        self.assertEqual(self.client.session.get_expiry_age(), 600)
+        self.assertGreater(self.client.session.get_expiry_age(), 86400)
 
-    def test_logout_with_timeout_shows_auto_logout_message(self):
-        # Trigger timeout auto-logout
-        res = self.client.get('/logout/?timeout=1', follow=True)
+    def test_standard_logout(self):
+        # User logging out is redirected to login without auto-logout warning
+        self.client.login(username='testuser', password='password123')
+        res = self.client.get('/logout/', follow=True)
         self.assertEqual(res.status_code, 200)
-        self.assertContains(res, "10-Min Session Timeout")
+        self.assertContains(res, "You have been logged out.")
+        self.assertNotContains(res, "10-Min Session Timeout")
 
     def test_attendance_form_blocks_sunday(self):
         # Nov 1, 2026 is Sunday

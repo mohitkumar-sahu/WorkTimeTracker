@@ -179,10 +179,10 @@ LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
 
-# Session Security: Auto logout after 10 minutes of login (600 seconds)
-SESSION_COOKIE_AGE = 600  # 10 minutes
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-SESSION_SAVE_EVERY_REQUEST = False
+# Session Settings: Persistent sessions (no auto-logout)
+SESSION_COOKIE_AGE = 86400 * 30  # 30 days
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_SAVE_EVERY_REQUEST = True
 
 
 # Email Configuration (for Email OTP verification & notifications)
