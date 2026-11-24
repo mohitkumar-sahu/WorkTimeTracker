@@ -182,11 +182,17 @@
                                     {{ r.worked_hours_formatted }}
                                 </td>
                                 <td class="text-muted small">
-                                    {{ user.profile.daily_target_formatted }}
+                                    {{ r.target_formatted }}
                                 </td>
                                 <td>
                                     {% if not r.logout_time %}
                                         <span class="text-muted">-</span>
+                                    {% elif r.date.weekday == 6 %}
+                                        {% if r.diff_minutes > 0 %}
+                                            <span class="fw-bold text-success">{{ r.diff_formatted }}</span>
+                                        {% else %}
+                                            <span class="badge bg-light text-muted border">0m (Sunday Off)</span>
+                                        {% endif %}
                                     {% elif r.diff_minutes >= 0 %}
                                         <span class="fw-bold text-success">{{ r.diff_formatted }}</span>
                                     {% else %}
@@ -196,15 +202,24 @@
                                 <td>
                                     {% if not r.logout_time %}
                                         <span class="badge badge-ongoing">Working</span>
+                                    {% elif r.date.weekday == 6 %}
+                                        {% if r.diff_minutes > 0 %}
+                                            <span class="badge badge-surplus">Surplus</span>
+                                        {% else %}
+                                            <span class="badge bg-warning bg-opacity-25 text-dark border border-warning">Sunday Off</span>
+                                        {% endif %}
                                     {% elif r.diff_minutes >= 0 %}
                                         <span class="badge badge-surplus">Surplus</span>
                                     {% else %}
                                         <span class="badge badge-deficit">Deficit</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-end pe-4">
-                                    <a href="{% url 'attendance_update' r.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit">
+                                <td class="text-end pe-4 text-nowrap">
+                                    <a href="{% url 'attendance_update' r.pk %}" class="btn btn-sm btn-outline-secondary me-1" title="Edit">
                                         <i class="bi bi-pencil me-1"></i> Edit
+                                    </a>
+                                    <a href="{% url 'attendance_delete' r.pk %}" class="btn btn-sm btn-outline-danger" title="Delete Attendance">
+                                        <i class="bi bi-trash"></i>
                                     </a>
                                 </td>
                             </tr>

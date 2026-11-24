@@ -70,8 +70,20 @@ def get_month_saturdays_status(user, year, month):
     return saturdays
 
 
+def cleanup_sunday_records(user):
+    """Purges accidental zero-minute Sunday attendance records since Sunday is completely off."""
+    records = AttendanceRecord.objects.filter(user=user)
+    to_delete = [
+        r.pk for r in records
+        if r.date.weekday() == 6 and (r.get_worked_minutes() == 0 or r.get_worked_minutes() is None)
+    ]
+    if to_delete:
+        AttendanceRecord.objects.filter(pk__in=to_delete).delete()
+
+
 @login_required
 def dashboard(request):
+    cleanup_sunday_records(request.user)
     today = timezone.localdate()
     now_dt = timezone.localtime(timezone.now())
 
@@ -365,6 +377,7 @@ def get_user_date_range(user):
 
 @login_required
 def attendance_history(request):
+    cleanup_sunday_records(request.user)
     today = timezone.localdate()
     start_date, end_date = get_user_date_range(request.user)
 
@@ -506,7 +519,7 @@ def export_attendance_csv(request):
             login_s,
             logout_s,
             r.worked_hours_formatted,
-            request.user.profile.daily_target_formatted,
+            r.target_formatted,
             r.diff_formatted,
             r.status,
             r.notes or ''

@@ -645,3 +645,56 @@ class AttendanceCalculationTests(TestCase):
             self.assertEqual(res.status_code, 200)
             self.assertContains(res, "Sunday is completely off for all employees")
             self.assertFalse(AttendanceRecord.objects.filter(user=self.user, date=date(2026, 11, 1)).exists())
+
+    def test_sunday_record_has_zero_target_and_no_deficit(self):
+        # Sunday Nov 22, 2026
+        sun_rec = AttendanceRecord.objects.create(
+            user=self.user,
+            date=date(2026, 11, 22),
+            login_time=time(18, 11),
+            logout_time=time(18, 11)
+        )
+        self.assertEqual(sun_rec.target_minutes, 0)
+        self.assertEqual(sun_rec.target_formatted, "0h 00m (Off)")
+        self.assertEqual(sun_rec.diff_minutes, 0)
+        self.assertEqual(sun_rec.status, "WEEKLY_OFF")
+
+    def test_monthly_summary_excludes_sunday_from_net_balance_and_days_worked(self):
+        # Mon Nov 23: 9h 21m (+6m)
+        AttendanceRecord.objects.create(
+            user=self.user,
+            date=date(2026, 11, 23),
+            login_time=time(9, 27),
+            logout_time=time(18, 48)  # 561m (+6m)
+        )
+        # Tue Nov 24: 9h 50m (+35m)
+        AttendanceRecord.objects.create(
+            user=self.user,
+            date=date(2026, 11, 24),
+            login_time=time(9, 39),
+            logout_time=time(19, 29)  # 590m (+35m)
+        )
+        # Sunday Nov 22: 0m punch
+        AttendanceRecord.objects.create(
+            user=self.user,
+            date=date(2026, 11, 22),
+            login_time=time(18, 11),
+            logout_time=time(18, 11)
+        )
+        summary = calculate_monthly_summary(self.user, 2026, 11)
+        # Sunday should NOT count as a working day and should NOT create deficit
+        self.assertEqual(summary['days_worked'], 2)
+        self.assertEqual(summary['diff_minutes'], 41)
+        self.assertEqual(summary['diff_formatted'], "+41m")
+
+    def test_cleanup_sunday_records_removes_zero_minute_sunday_entries(self):
+        from .views import cleanup_sunday_records
+        sun_rec = AttendanceRecord.objects.create(
+            user=self.user,
+            date=date(2026, 11, 22),
+            login_time=time(18, 11),
+            logout_time=time(18, 11)
+        )
+        self.assertTrue(AttendanceRecord.objects.filter(pk=sun_rec.pk).exists())
+        cleanup_sunday_records(self.user)
+        self.assertFalse(AttendanceRecord.objects.filter(pk=sun_rec.pk).exists())

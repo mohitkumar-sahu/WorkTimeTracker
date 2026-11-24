@@ -143,9 +143,20 @@ class AttendanceRecord(models.Model):
 
     @property
     def target_minutes(self):
+        # Sunday is completely off for all employees; required target is 0
+        if self.date.weekday() == 6:
+            return 0
         if hasattr(self.user, 'profile'):
             return self.user.profile.daily_target_minutes
         return 9 * 60 + 15
+
+    @property
+    def target_formatted(self):
+        if self.date.weekday() == 6:
+            return "0h 00m (Off)"
+        if hasattr(self.user, 'profile'):
+            return self.user.profile.daily_target_formatted
+        return "9h 15m"
 
     def get_worked_minutes(self):
         """Returns total worked minutes (login to logout duration), or None if logout_time is not set."""
@@ -196,6 +207,9 @@ class AttendanceRecord(models.Model):
         mins = self.get_worked_minutes()
         if mins is None:
             return None
+        # On Sunday (weekly off), target is 0, so diff is pure surplus (never deficit)
+        if self.date.weekday() == 6:
+            return max(0, mins - self.target_minutes)
         return mins - self.target_minutes
 
     @property
@@ -203,6 +217,12 @@ class AttendanceRecord(models.Model):
         diff = self.diff_minutes
         if diff is None:
             return "In Progress"
+        if self.date.weekday() == 6:
+            if diff > 0:
+                h = diff // 60
+                m = diff % 60
+                return f"+{h}h {m:02d}m" if h > 0 else f"+{m}m"
+            return "0m (Sunday Off)"
         if diff == 0:
             return "Exact (0m)"
         sign = "+" if diff > 0 else "-"
@@ -217,6 +237,10 @@ class AttendanceRecord(models.Model):
     def status(self):
         if not self.logout_time:
             return "IN_PROGRESS"
+        if self.date.weekday() == 6:
+            if self.diff_minutes > 0:
+                return "SURPLUS"
+            return "WEEKLY_OFF"
         diff = self.diff_minutes
         if diff > 0:
             return "SURPLUS"

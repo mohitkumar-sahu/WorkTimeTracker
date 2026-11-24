@@ -191,7 +191,11 @@ def calculate_weekly_summary(user, target_date=None):
     target_per_day = user.profile.daily_target_minutes
 
     completed_records = [r for r in records if r.logout_time is not None]
-    days_worked = len(completed_records)
+    working_records = [
+        r for r in completed_records
+        if not (r.date.weekday() == 6 and (r.get_worked_minutes() or 0) == 0)
+    ]
+    days_worked = len(working_records)
     total_minutes = sum(r.get_worked_minutes() for r in completed_records)
 
     leaves = LeaveRecord.objects.filter(
@@ -202,7 +206,7 @@ def calculate_weekly_summary(user, target_date=None):
 
     if days_worked > 0:
         avg_minutes = total_minutes / days_worked
-        total_target_minutes = days_worked * target_per_day
+        total_target_minutes = sum(r.target_minutes for r in working_records)
         diff_minutes = total_minutes - total_target_minutes
     else:
         avg_minutes = 0
@@ -253,7 +257,11 @@ def calculate_monthly_summary(user, year=None, month=None):
         r.schedule_status = get_day_schedule_status(user, r.date)
 
     completed_records = [r for r in records if r.logout_time is not None]
-    days_worked = len(completed_records)
+    working_records = [
+        r for r in completed_records
+        if not (r.date.weekday() == 6 and (r.get_worked_minutes() or 0) == 0)
+    ]
+    days_worked = len(working_records)
     total_minutes = sum(r.get_worked_minutes() for r in completed_records)
 
     # Leaves for this month
@@ -273,7 +281,7 @@ def calculate_monthly_summary(user, year=None, month=None):
 
     if days_worked > 0:
         avg_minutes = total_minutes / days_worked
-        total_target_minutes = days_worked * target_per_day
+        total_target_minutes = sum(r.target_minutes for r in working_records)
         diff_minutes = total_minutes - total_target_minutes
     else:
         avg_minutes = 0
@@ -391,8 +399,12 @@ def get_chart_data_for_month(user, year, month, records=None):
             date__month=month,
             logout_time__isnull=False
         ).select_related('user__profile').order_by('date')
-    else:
-        records = [r for r in records if r.logout_time is not None]
+    
+    # Exclude 0-minute accidental Sunday records
+    records = [
+        r for r in records
+        if r.logout_time is not None and not (r.date.weekday() == 6 and (r.get_worked_minutes() or 0) == 0)
+    ]
 
     target_decimal = round(user.profile.daily_target_minutes / 60.0, 2)
 
@@ -547,9 +559,13 @@ def calculate_flexi_recovery_plan(user, target_date=None, today_record=None, mon
             date__lt=target_date,
             logout_time__isnull=False
         )
-    prior_days_worked = len(prior_records)
+    prior_working_records = [
+        r for r in prior_records
+        if not (r.date.weekday() == 6 and (r.get_worked_minutes() or 0) == 0)
+    ]
+    prior_days_worked = len(prior_working_records)
     prior_worked_minutes = sum(r.get_worked_minutes() for r in prior_records)
-    prior_target_minutes = prior_days_worked * daily_target_minutes
+    prior_target_minutes = sum(r.target_minutes for r in prior_working_records)
     prior_diff_minutes = prior_worked_minutes - prior_target_minutes if prior_days_worked > 0 else 0
     prior_deficit_minutes = abs(prior_diff_minutes) if prior_diff_minutes < 0 else 0
     prior_surplus_minutes = prior_diff_minutes if prior_diff_minutes > 0 else 0
