@@ -33,18 +33,24 @@ from .services import (
 )
 
 
-def get_month_saturdays_status(user, year, month):
+def get_month_saturdays_status(user, year, month, records=None, leaves=None):
     """Returns list of all Saturdays in the month and whether each is marked off or worked."""
     total_days = calendar.monthrange(year, month)[1]
     saturdays = []
     today = timezone.localdate()
     ordinal_names = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th"}
 
-    # Bulk fetch all month leaves & attendances in 2 queries instead of querying inside loop
     start_d = date(year, month, 1)
     end_d = date(year, month, total_days)
-    leaves_by_date = {l.date: l for l in LeaveRecord.objects.filter(user=user, date__range=[start_d, end_d])}
-    att_by_date = {a.date: a for a in AttendanceRecord.objects.filter(user=user, date__range=[start_d, end_d])}
+    if leaves is not None:
+        leaves_by_date = {l.date: l for l in leaves}
+    else:
+        leaves_by_date = {l.date: l for l in LeaveRecord.objects.filter(user=user, date__range=[start_d, end_d])}
+
+    if records is not None:
+        att_by_date = {a.date: a for a in records}
+    else:
+        att_by_date = {a.date: a for a in AttendanceRecord.objects.filter(user=user, date__range=[start_d, end_d])}
 
     for day in range(1, total_days + 1):
         d = date(year, month, day)
@@ -72,13 +78,13 @@ def get_month_saturdays_status(user, year, month):
 
 def cleanup_sunday_records(user):
     """Purges accidental zero-minute Sunday attendance records since Sunday is completely off."""
-    records = AttendanceRecord.objects.filter(user=user)
-    to_delete = [
-        r.pk for r in records
-        if r.date.weekday() == 6 and (r.get_worked_minutes() == 0 or r.get_worked_minutes() is None)
-    ]
-    if to_delete:
-        AttendanceRecord.objects.filter(pk__in=to_delete).delete()
+    from django.db.models import F, Q
+    AttendanceRecord.objects.filter(
+        user=user,
+        date__week_day=1
+    ).filter(
+        Q(logout_time__isnull=True) | Q(login_time=F('logout_time'))
+    ).delete()
 
 
 @login_required
@@ -98,8 +104,12 @@ def dashboard(request):
     leave_stats = get_leave_statistics(request.user, today.year)
     chart_data = get_chart_data_for_month(request.user, today.year, today.month, records=monthly_stats.get('records'))
 
-    # All Saturdays in current month with their status
-    month_saturdays = get_month_saturdays_status(request.user, today.year, today.month)
+    # All Saturdays in current month with their status (reusing already-fetched month records & leaves)
+    month_saturdays = get_month_saturdays_status(
+        request.user, today.year, today.month,
+        records=monthly_stats.get('records'),
+        leaves=monthly_stats.get('leaves')
+    )
     saturdays_off_count = sum(1 for s in month_saturdays if s['is_off'])
 
     # Recent 7 attendance records

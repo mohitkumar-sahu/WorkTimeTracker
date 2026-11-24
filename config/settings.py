@@ -107,7 +107,11 @@ if IS_VERCEL:
 if "DATABASE_URL" in os.environ:
     import dj_database_url
     DATABASES = {
-        "default": dj_database_url.config(conn_max_age=0, ssl_require=True)
+        "default": dj_database_url.config(
+            conn_max_age=600,
+            conn_health_checks=True,
+            ssl_require=True
+        )
     }
 elif IS_VERCEL:
     DATABASES = {
@@ -174,6 +178,7 @@ STORAGES = {
     },
 }
 WHITENOISE_MANIFEST_STRICT = False
+WHITENOISE_MAX_AGE = 31536000  # 1 year cache for static assets
 
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
